@@ -7,7 +7,6 @@ __author__ = 'YashAB Cyber Security'
 __license__ = 'MIT'
 
 from hacktheweb.core.ai_engine import AIEngine
-from hacktheweb.core.scanner import Scanner
 from hacktheweb.core.config import Config
 
-__all__ = ['AIEngine', 'Scanner', 'Config']
+__all__ = ['AIEngine', 'Config']
