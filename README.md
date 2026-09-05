@@ -4,6 +4,21 @@ An AI-powered web application security assessment platform for automated vulnera
 
 ---
 
+## ⚠️ Authorized Security Testing Only
+
+ORION is intended exclusively for authorized security assessments, defensive security evaluations, and research within controlled environments.
+
+- **Explicit Authorization Required**: Users must only scan systems, networks, applications, and endpoints that they own or have explicit, verifiable authorization to assess.
+- **No Malicious Use**: Unauthorized scanning, testing, or exploiting of systems without prior written consent is strictly prohibited and may violate applicable local, national, and international cybercrime laws.
+- **Responsibility**: Users are solely responsible for ensuring compliance with all legal, regulatory, and contractual obligations. The author and contributors do not authorize, endorse, or encourage unauthorized or unlawful use.
+
+For detailed guidelines, scope definitions, and vulnerability reporting procedures, see:
+- [Security Policy](SECURITY.md)
+- [License](LICENSE)
+- [Third-Party Notices](THIRD_PARTY_NOTICES.md)
+
+---
+
 ## Quick Start Guide
 
 ### 1. Prerequisites
