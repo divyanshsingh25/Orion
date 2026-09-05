@@ -1,0 +1,50 @@
+# =============================================================================
+# Orion - Backend Requirements
+# =============================================================================
+
+# Core Web Framework & Server
+fastapi
+uvicorn[standard]
+websockets
+
+# Database & Migrations
+sqlalchemy
+alembic
+aiosqlite
+asyncpg
+
+# Configuration & Validation
+pydantic
+pydantic-settings
+python-dotenv
+validators
+email-validator
+
+# Security & Authentication
+python-jose[cryptography]
+passlib[bcrypt]
+pyOpenSSL
+
+# HTTP Clients, Crawling & Parsing
+httpx
+aiohttp
+python-multipart
+fake-useragent
+lxml
+playwright
+
+# Network Reconnaissance & DNS
+dnspython
+python-whois
+
+# Task Queue & Caching
+celery
+redis
+
+# AI & LLM Integrations
+openai
+google-auth
+
+# Reporting & Formats
+reportlab
+PyYAML
