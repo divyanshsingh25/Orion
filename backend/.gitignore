@@ -1,0 +1,49 @@
+# Environments & Secrets
+.env
+.env.*
+.env.local
+.env.*.local
+*.env
+!.env.example
+!.env.template
+
+# SQLite Databases & Backups
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.db.backup.*
+
+# Application Storage (preserve folder structure via .gitkeep)
+storage/backups/*
+!storage/backups/.gitkeep
+storage/reports/*
+!storage/reports/.gitkeep
+storage/logs/*
+!storage/logs/.gitkeep
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs & Error Outputs
+*.log
+*.err
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+
+# Editor & OS Artifacts
+.DS_Store
+Thumbs.db
+*.bak
+*.swp
+*~

@@ -1,0 +1,22 @@
+# Frontend Dependencies & Build Output
+node_modules/
+dist/
+
+# Logs & Debugging Output
+*.log
+*.err
+
+# Environment Files & Local Overrides
+.env
+.env.local
+.env.*.local
+
+# Allow Environment Templates
+!.env.example
+!.env.template
+
+# Editor & OS Artifacts
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,102 @@
+{
+  "metrics": [
+    { "label": "Total Scans", "value": 148, "delta": "+12%", "trend": "down", "accent": "cyan" },
+    { "label": "Critical", "value": 9, "delta": "-3%", "trend": "down", "accent": "red" },
+    { "label": "High", "value": 23, "delta": "0%", "trend": "down", "accent": "orange" },
+    { "label": "Medium", "value": 47, "delta": "+8%", "trend": "up", "accent": "yellow" }
+  ],
+  "severity": [
+    { "name": "Critical", "value": 9, "color": "#ef4444" },
+    { "name": "High", "value": 23, "color": "#f97316" },
+    { "name": "Medium", "value": 47, "color": "#f59e0b" },
+    { "name": "Low", "value": 12, "color": "#38bdf8" }
+  ],
+  "activity": [
+    { "day": "Mon", "Critical": 4, "High": 8, "Medium": 24 },
+    { "day": "Tue", "Critical": 2, "High": 10, "Medium": 21 },
+    { "day": "Wed", "Critical": 1, "High": 11, "Medium": 15 },
+    { "day": "Thu", "Critical": 1, "High": 10, "Medium": 12 },
+    { "day": "Fri", "Critical": 0, "High": 7, "Medium": 14 },
+    { "day": "Sat", "Critical": 0, "High": 4, "Medium": 19 },
+    { "day": "Sun", "Critical": 0, "High": 4, "Medium": 23 }
+  ],
+  "coverage": [
+    { "domain": "Auth", "score": 82 },
+    { "domain": "Network", "score": 76 },
+    { "domain": "Container", "score": 63 },
+    { "domain": "API", "score": 92 },
+    { "domain": "IAM", "score": 72 },
+    { "domain": "TLS/Cert", "score": 78 }
+  ],
+  "status": [
+    { "name": "Completed", "value": 4, "color": "#22c55e" },
+    { "name": "Running", "value": 1, "color": "#06b6d4" },
+    { "name": "Failed", "value": 1, "color": "#ef4444" }
+  ],
+  "attackVectors": [
+    { "name": "Network", "value": 60, "color": "#2563eb" },
+    { "name": "API", "value": 22, "color": "#22c55e" },
+    { "name": "Auth", "value": 13, "color": "#f59e0b" },
+    { "name": "Physical", "value": 5, "color": "#94a3b8" }
+  ],
+  "cvss": [
+    { "range": "0-2", "value": 1, "color": "#38bdf8" },
+    { "range": "2-4", "value": 2, "color": "#2563eb" },
+    { "range": "4-6", "value": 3, "color": "#f59e0b" },
+    { "range": "6-8", "value": 3, "color": "#f97316" },
+    { "range": "8-10", "value": 2, "color": "#ef4444" }
+  ],
+  "risks": [
+    { "title": "Privilege escalation path detected", "severity": "Critical" },
+    { "title": "Container image has outdated runtime", "severity": "High" },
+    { "title": "External IAM roles overexposed", "severity": "Medium" }
+  ],
+  "scanHistory": [
+    { "target": "admin.orion.sec", "status": "Running", "type": "API", "critical": 1, "high": 1, "medium": 1, "low": 0, "started": "7/29/2026", "duration": "-" },
+    { "target": "api.orion.sec", "status": "Completed", "type": "Full", "critical": 2, "high": 4, "medium": 5, "low": 1, "started": "7/29/2026", "duration": "17m 22s" },
+    { "target": "portal.orion.sec", "status": "Completed", "type": "Quick", "critical": 0, "high": 2, "medium": 2, "low": 1, "started": "7/28/2026", "duration": "13m 45s" },
+    { "target": "cdn.orion.sec", "status": "Completed", "type": "Quick", "critical": 0, "high": 0, "medium": 1, "low": 1, "started": "7/27/2026", "duration": "9m 12s" },
+    { "target": "auth.orion.sec", "status": "Failed", "type": "Auth", "critical": 0, "high": 0, "medium": 0, "low": 0, "started": "7/26/2026", "duration": "1m 04s" },
+    { "target": "api.orion.sec", "status": "Completed", "type": "Full", "critical": 3, "high": 6, "medium": 7, "low": 2, "started": "7/25/2026", "duration": "22m 18s" }
+  ],
+  "terminalEvents": [
+    { "time": "7:30:06 PM", "level": "INFO", "message": "Initializing ORION security scanner v3.2.1" },
+    { "time": "7:30:07 PM", "level": "INFO", "message": "Loading vulnerability signatures database" },
+    { "time": "7:30:08 PM", "level": "SCAN", "message": "Probing target api.orion.sec:443" },
+    { "time": "7:30:08 PM", "level": "INFO", "message": "TLS handshake successful - TLS 1.3" },
+    { "time": "7:30:09 PM", "level": "SCAN", "message": "Enumerating endpoints..." },
+    { "time": "7:30:10 PM", "level": "FOUND", "message": "Discovered endpoint: /api/v1/users" },
+    { "time": "7:30:11 PM", "level": "FOUND", "message": "Discovered endpoint: /api/v1/auth" },
+    { "time": "7:30:12 PM", "level": "SCAN", "message": "Running OWASP API authorization checks" },
+    { "time": "7:30:14 PM", "level": "FOUND", "message": "Weak object-level authorization pattern" },
+    { "time": "7:30:16 PM", "level": "INFO", "message": "Container fingerprint: nginx 1.24, node 20" }
+  ],
+  "liveModules": [
+    { "name": "Asset Discovery", "status": "Complete", "progress": 100, "findings": 12 },
+    { "name": "TLS & Certificate", "status": "Complete", "progress": 100, "findings": 2 },
+    { "name": "API Authorization", "status": "Scanning", "progress": 64, "findings": 4 },
+    { "name": "Container Runtime", "status": "Queued", "progress": 18, "findings": 1 },
+    { "name": "IAM Exposure", "status": "Queued", "progress": 8, "findings": 0 }
+  ],
+  "assistantMessages": [
+    { "role": "assistant", "content": "**Posture update:** No newly exposed critical internet-facing assets were detected in the last sweep." },
+    { "role": "user", "content": "Show the riskiest path to remediation." },
+    { "role": "assistant", "content": "Prioritize `api.orion.sec` first. It combines **BOLA risk**, stale container runtime, and overly broad IAM permissions.\n- Rotate API tokens\n- Patch the runtime image\n- Restrict the `orion-admin` role" }
+  ],
+  "vulnerabilities": [
+    { "id": "OR-1048", "title": "Broken object level authorization on user endpoint", "asset": "api.orion.sec", "owasp": "API1:2023", "cwe": "CWE-639", "cvss": 9.1, "severity": "Critical", "status": "Open", "evidence": "GET /api/v1/users/193 returned profile data without ownership validation.", "remediation": "Enforce object ownership checks server-side and add deny-by-default authorization middleware." },
+    { "id": "OR-1031", "title": "Outdated Node runtime in container image", "asset": "portal.orion.sec", "owasp": "A06:2021", "cwe": "CWE-1104", "cvss": 7.8, "severity": "High", "status": "Open", "evidence": "Container layer exposes node:18.16 with known high CVEs.", "remediation": "Rebuild from a supported LTS base image and pin digest in CI." },
+    { "id": "OR-1017", "title": "Session cookie missing strict same-site policy", "asset": "admin.orion.sec", "owasp": "A05:2021", "cwe": "CWE-614", "cvss": 5.6, "severity": "Medium", "status": "In Review", "evidence": "Set-Cookie: sid omits SameSite and Priority attributes.", "remediation": "Set SameSite=Strict, Secure, HttpOnly, and Priority=High on session cookies." },
+    { "id": "OR-1009", "title": "Verbose error response leaks framework metadata", "asset": "auth.orion.sec", "owasp": "A09:2021", "cwe": "CWE-209", "cvss": 3.4, "severity": "Low", "status": "Accepted", "evidence": "500 responses include Express stack trace and package version.", "remediation": "Return generic error envelopes and forward detailed stack traces to internal logs only." }
+  ],
+  "attackSurfaceAssets": [
+    { "name": "api.orion.sec", "type": "API Gateway", "risk": "Critical", "ports": [443, 8443], "endpoints": 42, "technologies": ["Kong", "Node.js", "PostgreSQL"], "certificate": "DigiCert EV - 42 days", "subdomains": ["v1.api.orion.sec", "internal.api.orion.sec"], "exposure": 94 },
+    { "name": "portal.orion.sec", "type": "Web App", "risk": "High", "ports": [80, 443], "endpoints": 28, "technologies": ["React", "Nginx", "CloudFront"], "certificate": "AWS ACM - 71 days", "subdomains": ["assets.portal.orion.sec", "cdn.portal.orion.sec"], "exposure": 78 },
+    { "name": "admin.orion.sec", "type": "Admin Console", "risk": "Medium", "ports": [443], "endpoints": 16, "technologies": ["NextAuth", "Redis", "WAF"], "certificate": "LetsEncrypt - 51 days", "subdomains": ["sso.admin.orion.sec", "logs.admin.orion.sec"], "exposure": 61 }
+  ],
+  "reports": [
+    { "name": "Executive Risk Brief", "type": "PDF", "audience": "Board", "updated": "Today", "pages": 18, "status": "Ready", "score": 95 },
+    { "name": "Technical Remediation Plan", "type": "HTML", "audience": "Engineering", "updated": "2 hours ago", "pages": 32, "status": "Draft", "score": 88 },
+    { "name": "Compliance Evidence Pack", "type": "PDF", "audience": "GRC", "updated": "Yesterday", "pages": 44, "status": "Ready", "score": 91 }
+  ]
+}
