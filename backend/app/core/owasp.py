@@ -100,7 +100,8 @@ def calculate_dynamic_cvss(finding: dict) -> tuple[float, str, str]:
     severity is re-derived from the final numeric score so they ALWAYS agree.
 
     Context-aware adjustments:
-      - confidence: low → -1.0, confirmed → +0.5
+      - potential / unconfirmed: reduce base score to avoid false high alarms
+      - confidence: low → -1.5, medium → 0.0, confirmed → +0.5
       - auth_required: True → reduce score (attacker needs privileges)
       - user_interaction: True → reduce score (requires user action)
       - scope_change: True → increase score (impacts other components)
@@ -121,7 +122,13 @@ def calculate_dynamic_cvss(finding: dict) -> tuple[float, str, str]:
         except (TypeError, ValueError):
             cvss = profile.cvss_score
     else:
-        cvss = profile.cvss_score
+        # Type-specific intelligent defaults
+        if finding_type == "cors" and str(finding.get("severity", "")).lower() in ("low", "info"):
+            cvss = 3.0
+        elif finding_type == "ssrf" and str(finding.get("verification_status", "")).lower() == "potential":
+            cvss = 5.3
+        else:
+            cvss = profile.cvss_score
 
     # --- 2. Parse and adjust CVSS vector based on context ---
     base_vector = str(finding.get("cvss_vector") or profile.cvss_vector)
@@ -153,12 +160,17 @@ def calculate_dynamic_cvss(finding: dict) -> tuple[float, str, str]:
         metrics["AV"] = "A"  # Adjacent network only
         cvss = max(0.0, cvss - 1.5)
 
-    # --- 3. Adjust based on confidence ---
+    # --- 3. Adjust based on verification status and confidence ---
+    verification_status = str(finding.get("verification_status") or "").lower()
     confidence = str(finding.get("confidence") or "Medium").lower()
-    if confidence == "low":
-        cvss = max(0.0, cvss - 1.0)
-    elif confidence == "confirmed":
-        cvss = min(10.0, cvss + 0.5)
+
+    if verification_status == "potential" or confidence == "low":
+        if cvss >= 7.0:
+            cvss = max(4.0, cvss - 2.5)  # Cap unconfirmed/potential findings below High
+        else:
+            cvss = max(0.0, cvss - 1.0)
+    elif confidence == "confirmed" or verification_status == "confirmed":
+        cvss = min(10.0, cvss)
 
     cvss = round(min(10.0, max(0.0, cvss)), 1)
 

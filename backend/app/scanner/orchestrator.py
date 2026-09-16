@@ -719,7 +719,15 @@ class OrionScanner:
 
                 scanner_cls = self.scanner_types[module_name]
                 scanner = scanner_cls(self.hack_cfg, session)
-                module_budget = 30.0 if is_quick else 60.0
+                if is_quick:
+                    module_budget = 35.0
+                else:
+                    # Full scan mode: provide ample time (240s-300s) for thorough injection discovery
+                    if module_name in ("xss", "sqli", "ssrf", "rce", "lfi", "path_traversal", "xxe", "nosqli", "ldapi", "ssti", "idor"):
+                        module_budget = max(240.0, float(self.settings.scan_timeout_seconds))
+                    else:
+                        module_budget = max(120.0, float(self.settings.scan_timeout_seconds))
+
                 try:
                     module_findings = await asyncio.wait_for(
                         scanner.scan(target_url, recon_dict),

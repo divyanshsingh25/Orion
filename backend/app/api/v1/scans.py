@@ -8,7 +8,7 @@ from app.core.deps import get_current_user
 from app.core.security import decode_token
 from app.database.session import AsyncSessionLocal, get_db
 from app.middleware.websocket_manager import connection_manager
-from app.models import User
+from app.models import Scan, User
 from app.schemas.common import MessageResponse
 from app.schemas.scan import ScanCreateRequest, ScanRead
 from app.services.scan_service import ScanService
@@ -55,6 +55,12 @@ async def scan_stream(websocket: WebSocket, scan_id: str, token: str = Query(...
             user = result.scalar_one_or_none()
             if user is None or not user.is_active or not user.is_verified:
                 await websocket.close(code=4403)
+                return
+
+            scan_res = await session.execute(select(Scan).where(Scan.id == scan_id, Scan.user_id == user.id))
+            scan = scan_res.scalar_one_or_none()
+            if scan is None:
+                await websocket.close(code=4404)
                 return
     except Exception:
         await websocket.close(code=4401)

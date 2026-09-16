@@ -64,9 +64,7 @@ export function VulnerabilitiesPage() {
   const groupedFindings = useMemo(() => {
     const groups: Record<string, Vulnerability[]> = {};
     filtered.forEach((item) => {
-      // Normalize title to group similar ones (e.g., parameter names in quotes)
-      let baseTitle = item.title;
-      baseTitle = baseTitle.replace(/"[^"]+"/g, '"..."').replace(/'[^']+'/g, "'...'");
+      const baseTitle = item.title;
 
       if (!groups[baseTitle]) {
         groups[baseTitle] = [];

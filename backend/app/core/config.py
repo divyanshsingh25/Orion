@@ -10,7 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="ORION_",
-        env_file=".env",
+        env_file=(".env", "backend/.env"),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -65,7 +65,7 @@ class Settings(BaseSettings):
     scan_rate_limit_rps: float = 4.0
     scan_max_rps: float = 10.0
     scan_max_concurrency: int = 5
-    scan_max_duration_seconds: float = 600.0
+    scan_max_duration_seconds: float = 900.0
     scan_safe_mode: bool = True
 
     # LLM Integration

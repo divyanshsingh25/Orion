@@ -30,28 +30,28 @@ LIFECYCLE_REOPENED = "reopened"
 # Minimum evidence requirements per finding type
 # ---------------------------------------------------------------------------
 _EVIDENCE_REQUIREMENTS: dict[str, list[str]] = {
-    # Injection / active testing — expect payload + request/response
-    "xss": ["affected_url", "source_module", "detection_reason"],
-    "sqli": ["affected_url", "source_module", "detection_reason"],
-    "nosqli": ["affected_url", "source_module", "detection_reason"],
-    "ssrf": ["affected_url", "source_module", "detection_reason"],
-    "ssti": ["affected_url", "source_module", "detection_reason"],
-    "rce": ["affected_url", "source_module", "detection_reason"],
-    "lfi": ["affected_url", "source_module", "detection_reason"],
-    "path_traversal": ["affected_url", "source_module", "detection_reason"],
-    "xxe": ["affected_url", "source_module", "detection_reason"],
-    "ldapi": ["affected_url", "source_module", "detection_reason"],
-    # Config / passive — no payload expected
-    "security_headers": ["source_module"],
-    "information_disclosure": ["source_module"],
-    "tls_misconfiguration": ["source_module"],
-    "cookie_security": ["source_module"],
+    # Injection / active testing — expect url + param + evidence + reason
+    "xss": ["affected_url", "source_module", "detection_reason", "evidence"],
+    "sqli": ["affected_url", "source_module", "detection_reason", "evidence"],
+    "nosqli": ["affected_url", "source_module", "detection_reason", "evidence"],
+    "ssrf": ["affected_url", "affected_parameter", "source_module", "detection_reason", "evidence"],
+    "ssti": ["affected_url", "source_module", "detection_reason", "evidence"],
+    "rce": ["affected_url", "source_module", "detection_reason", "evidence"],
+    "lfi": ["affected_url", "source_module", "detection_reason", "evidence"],
+    "path_traversal": ["affected_url", "source_module", "detection_reason", "evidence"],
+    "xxe": ["affected_url", "source_module", "detection_reason", "evidence"],
+    "ldapi": ["affected_url", "source_module", "detection_reason", "evidence"],
+    # Config / passive — require evidence of header / config
+    "security_headers": ["affected_url", "source_module", "evidence"],
+    "information_disclosure": ["affected_url", "source_module", "evidence"],
+    "tls_misconfiguration": ["source_module", "evidence"],
+    "cookie_security": ["source_module", "evidence"],
     "service_vulnerability": ["source_module"],
-    "csrf": ["affected_url", "source_module"],
-    "cors": ["affected_url", "source_module"],
-    "api_security": ["affected_url", "source_module"],
-    "idor": ["affected_url", "source_module"],
-    "open_redirect": ["affected_url", "source_module"],
+    "csrf": ["affected_url", "source_module", "evidence"],
+    "cors": ["affected_url", "source_module", "evidence"],
+    "api_security": ["affected_url", "source_module", "evidence"],
+    "idor": ["affected_url", "source_module", "evidence"],
+    "open_redirect": ["affected_url", "source_module", "evidence"],
 }
 
 
@@ -61,18 +61,6 @@ def _build_correlation_key(finding: dict[str, Any]) -> str:
     The key captures the *underlying issue* so that the same vulnerability
     detected on different endpoints is grouped, but genuinely different
     vulnerabilities are NOT merged even if they share a CWE.
-
-    Strategy per finding type:
-      - security_headers / tls: type + header_name/check (same header missing
-        on the same target is always one issue)
-      - xss/sqli/injection: type + parameter + payload_signature (same vuln
-        on different URLs with same param = one issue; different params = different)
-      - api_security: type + sub-category (e.g. "permissive_methods") — grouped
-        because it's a server config issue, not per-endpoint
-      - cors: type + behavior (e.g. "reflects_origin") — same config issue
-      - csrf: type + form_action_path (same form = one issue)
-      - service_vulnerability: type + CVE ID (same CVE = one issue)
-      - cookie_security: type + cookie_name
     """
     ftype = str(finding.get("finding_type") or finding.get("type") or "unknown")
     cwe = str(finding.get("cwe_id") or finding.get("cwe") or "")
@@ -80,21 +68,23 @@ def _build_correlation_key(finding: dict[str, Any]) -> str:
     param = str(finding.get("affected_parameter") or finding.get("parameter") or
                 finding.get("header_name") or finding.get("cookie_name") or "")
 
+    url = str(finding.get("affected_url") or finding.get("url") or "")
+    from urllib.parse import urlparse
+    try:
+        path = urlparse(url).path.rstrip("/")
+    except Exception:
+        path = ""
+
     # --- Type-specific key construction ---
     if "hsts" in title.lower() or "strict-transport-security" in str(param).lower() or "strict-transport-security" in title.lower():
-        # Missing or misconfigured HSTS is the exact same underlying issue regardless of module (TLS vs Headers)
         key_parts = ["hsts_configuration", "cwe-319"]
     elif ftype in ("security_headers", "information_disclosure"):
-        # Same missing header = one issue regardless of URL
         key_parts = [ftype, cwe, param]
     elif ftype == "tls_misconfiguration":
-        # Normalize title to group same TLS issue
         normalized = re.sub(r"\d+", "#", title.lower())
         key_parts = [ftype, normalized]
     elif ftype == "service_vulnerability":
-        # Group by CVE ID
         cve_id = str(finding.get("cve") or "")
-        # If no CVE, use service + port as fallback
         if not cve_id:
             svc = str(finding.get("service") or "")
             port = str(finding.get("port") or "")
@@ -102,28 +92,15 @@ def _build_correlation_key(finding: dict[str, Any]) -> str:
         else:
             key_parts = [ftype, cve_id]
     elif ftype == "csrf":
-        # Same form action path = one issue
-        url = str(finding.get("affected_url") or finding.get("url") or "")
-        from urllib.parse import urlparse
-        path = urlparse(url).path
         key_parts = [ftype, path]
     elif ftype in ("cors", "api_security"):
-        # Same underlying config issue — group by sub-category from title
         sub = _extract_subcategory(title)
         key_parts = [ftype, sub]
     elif ftype in ("xss", "sqli", "nosqli", "ssrf", "ssti", "rce", "lfi",
-                    "path_traversal", "xxe", "ldapi"):
-        # Same vuln type + same parameter = same root cause
-        key_parts = [ftype, param]
-    elif ftype == "open_redirect":
-        key_parts = [ftype, param]
-    elif ftype == "idor":
-        key_parts = [ftype, param]
+                    "path_traversal", "xxe", "ldapi", "open_redirect", "idor"):
+        key_parts = [ftype, path, param]
     else:
-        # Fallback: type + CWE + normalized title
-        normalized = re.sub(r'"[^"]*"', '"..."', title)
-        normalized = re.sub(r"'[^']*'", "'...'", normalized)
-        key_parts = [ftype, cwe, normalized]
+        key_parts = [ftype, cwe, title]
 
     raw_key = "|".join(str(p).strip().lower() for p in key_parts)
     return hashlib.sha256(raw_key.encode()).hexdigest()[:16]
@@ -150,10 +127,15 @@ def _extract_subcategory(title: str) -> str:
 def _validate_evidence(finding: dict[str, Any]) -> bool:
     """Check that a finding meets minimum evidence requirements."""
     ftype = str(finding.get("finding_type") or finding.get("type") or "unknown")
-    required = _EVIDENCE_REQUIREMENTS.get(ftype, ["source_module"])
+    required = _EVIDENCE_REQUIREMENTS.get(ftype, ["source_module", "evidence"])
     for field in required:
         val = finding.get(field)
-        if not val or str(val).strip() in ("", "None"):
+        if not val or str(val).strip() in ("", "None", "N/A", "..."):
+            # Check fallbacks
+            if field == "affected_parameter" and finding.get("parameter"):
+                continue
+            if field == "affected_url" and finding.get("url"):
+                continue
             return False
     return True
 

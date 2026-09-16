@@ -180,13 +180,10 @@ class EvidenceCollector:
             body = exchange.response_body.lower()
 
             verified = False
-            if indicator and indicator.lower() in body:
+            if indicator and len(indicator) > 3 and indicator.lower() in body:
                 verified = True
             elif payload and str(payload).lower() in body:
                 # Reflected payload — strong indicator for XSS, injection
-                verified = True
-            elif exchange.status_code == finding.get("original_status", 0):
-                # Same status code as original detection
                 verified = True
 
             if verified:
@@ -194,9 +191,9 @@ class EvidenceCollector:
                 finding["verification_status"] = "confirmed"
                 finding["verification_evidence"] = exchange.as_response_str()[:1024]
             else:
+                # If cannot be reproduced with evidence, do not mark as confirmed
                 finding["verification_status"] = "not_reproduced"
-                # Don't downgrade if already High confidence
-                if finding.get("confidence", "").lower() not in ("high", "confirmed"):
+                if str(finding.get("confidence", "")).lower() == "confirmed":
                     finding["confidence"] = "Low"
 
         except Exception as exc:

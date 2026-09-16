@@ -212,23 +212,16 @@ async def run_web_crawler(
                         "url": link,
                     })
 
-    # If few inputs were discovered, generate candidate test parameters on crawled pages
-    candidate_param_names = ["id", "page", "q", "search", "url", "file", "redirect", "category", "lang", "email", "view", "ref"]
-    existing_param_keys = {(inp.get("url"), inp.get("name")) for inp in all_inputs if inp.get("type") == "url_param"}
-    for page_info in all_pages[:15]:
-        page_url = page_info.get("url", "")
-        if not page_url:
-            continue
-        for cp in candidate_param_names[:6]:
-            if (page_url, cp) not in existing_param_keys:
-                all_inputs.append({
-                    "type": "url_param",
-                    "name": cp,
-                    "value": "1",
-                    "url": page_url,
-                })
-                existing_param_keys.add((page_url, cp))
 
+    # Deduplicate inputs by (url, name)
+    seen_inputs = set()
+    unique_inputs = []
+    for inp in all_inputs:
+        key = (inp.get("url"), inp.get("name"), inp.get("type"))
+        if key not in seen_inputs:
+            seen_inputs.add(key)
+            unique_inputs.append(inp)
+    all_inputs = unique_inputs
     # Deduplicate
     all_scripts = list(dict.fromkeys(all_scripts))
     all_links = list(dict.fromkeys(all_links))
