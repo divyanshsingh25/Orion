@@ -8,10 +8,22 @@ from pathlib import Path
 @lru_cache
 def ensure_hacktheweb_import_path() -> Path:
     backend_root = Path(__file__).resolve().parents[2]
-    hacktheweb_root = backend_root.parent / "hacktheweb-main"
-    if str(hacktheweb_root) not in sys.path:
-        sys.path.insert(0, str(hacktheweb_root))
-    return hacktheweb_root
+    candidates = [
+        backend_root.parent / "hacktheweb-main",
+        backend_root / "hacktheweb-main",
+        Path("/app/hacktheweb-main"),
+        Path("./hacktheweb-main").resolve(),
+    ]
+    for candidate in candidates:
+        if candidate.exists() and (candidate / "hacktheweb").exists():
+            if str(candidate) not in sys.path:
+                sys.path.insert(0, str(candidate))
+            return candidate
+
+    fallback = backend_root.parent / "hacktheweb-main"
+    if str(fallback) not in sys.path:
+        sys.path.insert(0, str(fallback))
+    return fallback
 
 
 def load_hacktheweb_components():
