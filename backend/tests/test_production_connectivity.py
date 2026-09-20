@@ -8,28 +8,28 @@ from app.scanner.orchestrator import OrionScanner
 
 
 def test_cors_settings_from_env_json(monkeypatch):
-    monkeypatch.setenv("ORION_CORS_ORIGINS", '["https://orion-one-alpha.vercel.app","http://localhost:5173"]')
+    monkeypatch.setenv("ORION_CORS_ORIGINS", '["https://orion-1nhcx0zfp6-noaar.vercel.app","http://localhost:5173"]')
     s = Settings()
     assert s.cors_origins == [
-        "https://orion-one-alpha.vercel.app",
+        "https://orion-1nhcx0zfp6-noaar.vercel.app",
         "http://localhost:5173",
     ]
 
 
 def test_cors_settings_from_env_comma(monkeypatch):
-    monkeypatch.setenv("ORION_CORS_ORIGINS", "https://orion-one-alpha.vercel.app,http://localhost:5173")
+    monkeypatch.setenv("ORION_CORS_ORIGINS", "https://orion-1nhcx0zfp6-noaar.vercel.app,http://localhost:5173")
     s = Settings()
     assert s.cors_origins == [
-        "https://orion-one-alpha.vercel.app",
+        "https://orion-1nhcx0zfp6-noaar.vercel.app",
         "http://localhost:5173",
     ]
 
 
 def test_cors_settings_from_env_quoted_comma(monkeypatch):
-    monkeypatch.setenv("ORION_CORS_ORIGINS", ' "https://orion-one-alpha.vercel.app" , "http://localhost:5173" ')
+    monkeypatch.setenv("ORION_CORS_ORIGINS", ' "https://orion-1nhcx0zfp6-noaar.vercel.app" , "http://localhost:5173" ')
     s = Settings()
     assert s.cors_origins == [
-        "https://orion-one-alpha.vercel.app",
+        "https://orion-1nhcx0zfp6-noaar.vercel.app",
         "http://localhost:5173",
     ]
 
@@ -38,17 +38,28 @@ def test_cors_settings_default(monkeypatch):
     monkeypatch.delenv("ORION_CORS_ORIGINS", raising=False)
     monkeypatch.delenv("CORS_ORIGINS", raising=False)
     s = Settings(_env_file=None)
-    assert s.cors_origins == [
-        "http://localhost:5173",
-        "https://orion-one-alpha.vercel.app",
-    ]
+    assert "http://localhost:5173" in s.cors_origins
+    assert "https://orion-1nhcx0zfp6-noaar.vercel.app" in s.cors_origins
 
 
 def test_cors_preflight_options():
     client = TestClient(app)
 
-    # Preflight from Vercel frontend
-    response = client.options(
+    # 1. Preflight from active Vercel frontend
+    response_active = client.options(
+        "/api/v1/auth/register",
+        headers={
+            "Origin": "https://orion-1nhcx0zfp6-noaar.vercel.app",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Content-Type,Authorization",
+        },
+    )
+    assert response_active.status_code == 200
+    assert response_active.headers.get("access-control-allow-origin") == "https://orion-1nhcx0zfp6-noaar.vercel.app"
+    assert response_active.headers.get("access-control-allow-credentials") == "true"
+
+    # 2. Preflight from custom Vercel preview domain (via cors_origin_regex)
+    response_preview = client.options(
         "/api/v1/auth/register",
         headers={
             "Origin": "https://orion-one-alpha.vercel.app",
@@ -56,11 +67,11 @@ def test_cors_preflight_options():
             "Access-Control-Request-Headers": "Content-Type,Authorization",
         },
     )
-    assert response.status_code == 200
-    assert response.headers.get("access-control-allow-origin") == "https://orion-one-alpha.vercel.app"
-    assert response.headers.get("access-control-allow-credentials") == "true"
+    assert response_preview.status_code == 200
+    assert response_preview.headers.get("access-control-allow-origin") == "https://orion-one-alpha.vercel.app"
+    assert response_preview.headers.get("access-control-allow-credentials") == "true"
 
-    # Preflight from localhost
+    # 3. Preflight from localhost
     response_local = client.options(
         "/api/v1/auth/register",
         headers={
@@ -71,6 +82,17 @@ def test_cors_preflight_options():
     )
     assert response_local.status_code == 200
     assert response_local.headers.get("access-control-allow-origin") == "http://localhost:5173"
+
+    # 4. Unauthorized origin is rejected
+    response_unauth = client.options(
+        "/api/v1/auth/register",
+        headers={
+            "Origin": "http://evil-attacker.com",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Content-Type",
+        },
+    )
+    assert response_unauth.headers.get("access-control-allow-origin") is None
 
 
 def test_scanner_components_loaded_in_backend():

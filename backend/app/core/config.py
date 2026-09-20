@@ -21,15 +21,20 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
     api_v1_prefix: str = "/api/v1"
     frontend_url: str = Field(
-        default="https://orion-one-alpha.vercel.app",
+        default="https://orion-1nhcx0zfp6-noaar.vercel.app",
         validation_alias=AliasChoices("FRONTEND_URL", "ORION_FRONTEND_URL"),
     )
     cors_origins: Annotated[List[str], NoDecode] = Field(
         default_factory=lambda: [
             "http://localhost:5173",
+            "https://orion-1nhcx0zfp6-noaar.vercel.app",
             "https://orion-one-alpha.vercel.app",
         ],
         validation_alias=AliasChoices("CORS_ORIGINS", "ORION_CORS_ORIGINS"),
+    )
+    cors_origin_regex: str | None = Field(
+        default=r"^https:\/\/.*\.vercel\.app$",
+        validation_alias=AliasChoices("CORS_ORIGIN_REGEX", "ORION_CORS_ORIGIN_REGEX"),
     )
 
     database_url: str = Field(
