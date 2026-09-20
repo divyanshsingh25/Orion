@@ -13,10 +13,32 @@ import type {
   Vulnerability,
 } from "@/types/dashboard";
 
-const viteEnv = (import.meta as { env?: Record<string, string | undefined> }).env;
-const baseURL = viteEnv?.VITE_API_BASE_URL ?? "http://localhost:8123/api/v1";
-const apiBase = new URL(baseURL);
-const wsBase = `${apiBase.protocol === "https:" ? "wss:" : "ws:"}//${apiBase.host}${apiBase.pathname.replace(/\/$/, "")}`;
+function getNormalizedBaseURL(): string {
+  const envUrl = (import.meta as { env?: Record<string, string | undefined> }).env?.VITE_API_BASE_URL?.trim();
+  if (!envUrl) {
+    return "http://localhost:8123/api/v1";
+  }
+  let cleaned = envUrl.replace(/\/+$/, "");
+  if (!cleaned.endsWith("/api/v1")) {
+    cleaned = `${cleaned}/api/v1`;
+  }
+  return cleaned;
+}
+
+const baseURL = getNormalizedBaseURL();
+
+function getWebSocketBaseURL(httpBase: string): string {
+  try {
+    const parsed = new URL(httpBase);
+    const protocol = parsed.protocol === "https:" ? "wss:" : "ws:";
+    const cleanPath = parsed.pathname.replace(/\/+$/, "");
+    return `${protocol}//${parsed.host}${cleanPath}`;
+  } catch {
+    return "ws://localhost:8123/api/v1";
+  }
+}
+
+const wsBase = getWebSocketBaseURL(baseURL);
 
 const storageKeys = {
   accessToken: "orion.access_token",

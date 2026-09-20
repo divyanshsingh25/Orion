@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from functools import lru_cache
 from typing import List
 
@@ -20,10 +21,17 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
     api_v1_prefix: str = "/api/v1"
     frontend_url: str = Field(
-        default="http://localhost:5173",
+        default="https://orion-one-alpha.vercel.app",
         validation_alias=AliasChoices("FRONTEND_URL", "ORION_FRONTEND_URL"),
     )
-    cors_origins: List[str] = Field(default_factory=lambda: ["http://localhost:5173"])
+    cors_origins: List[str] = Field(
+        default_factory=lambda: [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "https://orion-one-alpha.vercel.app",
+        ],
+        validation_alias=AliasChoices("CORS_ORIGINS", "ORION_CORS_ORIGINS"),
+    )
 
     database_url: str = Field(
         default="postgresql+asyncpg://postgres:change_me@localhost:5432/orion",
@@ -37,9 +45,22 @@ class Settings(BaseSettings):
     db_max_overflow: int = Field(default=20, validation_alias=AliasChoices("DB_MAX_OVERFLOW", "ORION_DB_MAX_OVERFLOW"))
     db_pool_timeout: int = Field(default=30, validation_alias=AliasChoices("DB_POOL_TIMEOUT", "ORION_DB_POOL_TIMEOUT"))
     db_pool_recycle: int = Field(default=1800, validation_alias=AliasChoices("DB_POOL_RECYCLE", "ORION_DB_POOL_RECYCLE"))
-    redis_url: str = "redis://localhost:6379/0"
-    celery_broker_url: str = "redis://localhost:6379/1"
-    celery_result_backend: str = "redis://localhost:6379/2"
+    redis_url: str = Field(
+        default="redis://localhost:6379/0",
+        validation_alias=AliasChoices("REDIS_URL", "REDIS_PRIVATE_URL", "REDISURL", "ORION_REDIS_URL"),
+    )
+    celery_broker_url: str = Field(
+        default="redis://localhost:6379/1",
+        validation_alias=AliasChoices("CELERY_BROKER_URL", "REDIS_URL", "REDIS_PRIVATE_URL", "ORION_CELERY_BROKER_URL"),
+    )
+    celery_result_backend: str = Field(
+        default="redis://localhost:6379/2",
+        validation_alias=AliasChoices("CELERY_RESULT_BACKEND", "REDIS_URL", "REDIS_PRIVATE_URL", "ORION_CELERY_RESULT_BACKEND"),
+    )
+    use_celery: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("USE_CELERY", "ORION_USE_CELERY"),
+    )
 
     secret_key: str = Field(
         default="change-me-in-production",
@@ -88,11 +109,48 @@ class Settings(BaseSettings):
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, value: object) -> List[str]:
-        if value is None:
-            return ["http://localhost:5173"]
+        default_origins = [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "https://orion-one-alpha.vercel.app",
+        ]
+        if value is None or value == "":
+            return default_origins
+
+        raw_items: list[str] = []
         if isinstance(value, str):
-            return [item.strip() for item in value.split(",") if item.strip()]
-        return list(value)
+            val_str = value.strip()
+            if not val_str:
+                return default_origins
+            if val_str.startswith("[") and val_str.endswith("]"):
+                try:
+                    parsed = json.loads(val_str)
+                    if isinstance(parsed, list):
+                        raw_items = [str(x) for x in parsed]
+                    else:
+                        raw_items = [str(parsed)]
+                except Exception:
+                    val_str = val_str[1:-1]
+                    raw_items = val_str.split(",")
+            else:
+                raw_items = val_str.split(",")
+        elif isinstance(value, (list, tuple, set)):
+            raw_items = [str(x) for x in value]
+        else:
+            raw_items = [str(value)]
+
+        cleaned: list[str] = []
+        for item in raw_items:
+            s = item.strip().strip("'\"").rstrip("/")
+            if s and s not in cleaned:
+                cleaned.append(s)
+
+        # Always ensure standard localhost and production vercel are included
+        for fallback in default_origins:
+            if fallback not in cleaned:
+                cleaned.append(fallback)
+
+        return cleaned
 
 
 @lru_cache

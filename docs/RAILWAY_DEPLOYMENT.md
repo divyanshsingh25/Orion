@@ -34,8 +34,8 @@ Under the service **Variables** tab, add the following:
 | :--- | :--- | :--- |
 | `DATABASE_URL` | Connect to your Railway PostgreSQL service | `${{Postgres.DATABASE_URL}}` *(Reference variable)* |
 | `SECRET_KEY` | 32+ character random string for JWT signing | `openssl rand -hex 32` |
-| `FRONTEND_URL` | URL of your deployed frontend (for CORS & auth redirects) | `https://orion-frontend.vercel.app` |
-| `ORION_CORS_ORIGINS` | Comma-separated list of allowed frontend origins | `https://orion-frontend.vercel.app,http://localhost:5173` |
+| `FRONTEND_URL` | URL of your deployed frontend (for CORS & auth redirects) | `https://orion-one-alpha.vercel.app` |
+| `ORION_CORS_ORIGINS` | Comma-separated list of allowed frontend origins | `https://orion-one-alpha.vercel.app,http://localhost:5173` |
 
 #### Optional / AI Variables
 | Variable | Value / Description | Default |

@@ -106,6 +106,10 @@ export function LoginPage() {
         } else if (typeof detail === "string") {
           errorMessage = detail;
         }
+      } else if (submissionError?.response?.data?.message) {
+        errorMessage = submissionError.response.data.message;
+      } else if (submissionError?.message === "Network Error") {
+        errorMessage = "Network Error: Unable to reach the backend API. Please verify the backend is running and CORS allows this origin.";
       } else if (submissionError instanceof Error) {
         errorMessage = submissionError.message;
       }

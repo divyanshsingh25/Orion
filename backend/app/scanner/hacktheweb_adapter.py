@@ -9,10 +9,16 @@ from pathlib import Path
 def ensure_hacktheweb_import_path() -> Path:
     backend_root = Path(__file__).resolve().parents[2]
     candidates = [
-        backend_root.parent / "hacktheweb-main",
         backend_root / "hacktheweb-main",
+        backend_root.parent / "hacktheweb-main",
+        backend_root / "hacktheweb",
+        backend_root.parent / "hacktheweb",
         Path("/app/hacktheweb-main"),
+        Path("/app/backend/hacktheweb-main"),
+        Path("/app"),
         Path("./hacktheweb-main").resolve(),
+        Path("./backend/hacktheweb-main").resolve(),
+        Path(".").resolve(),
     ]
     for candidate in candidates:
         if candidate.exists() and (candidate / "hacktheweb").exists():
@@ -20,7 +26,7 @@ def ensure_hacktheweb_import_path() -> Path:
                 sys.path.insert(0, str(candidate))
             return candidate
 
-    fallback = backend_root.parent / "hacktheweb-main"
+    fallback = backend_root / "hacktheweb-main"
     if str(fallback) not in sys.path:
         sys.path.insert(0, str(fallback))
     return fallback
