@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import json
 from functools import lru_cache
-from typing import List
+from typing import Annotated, List
 
 from pydantic import AliasChoices, Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -24,10 +24,9 @@ class Settings(BaseSettings):
         default="https://orion-one-alpha.vercel.app",
         validation_alias=AliasChoices("FRONTEND_URL", "ORION_FRONTEND_URL"),
     )
-    cors_origins: List[str] = Field(
+    cors_origins: Annotated[List[str], NoDecode] = Field(
         default_factory=lambda: [
             "http://localhost:5173",
-            "http://127.0.0.1:5173",
             "https://orion-one-alpha.vercel.app",
         ],
         validation_alias=AliasChoices("CORS_ORIGINS", "ORION_CORS_ORIGINS"),
@@ -111,7 +110,6 @@ class Settings(BaseSettings):
     def parse_cors_origins(cls, value: object) -> List[str]:
         default_origins = [
             "http://localhost:5173",
-            "http://127.0.0.1:5173",
             "https://orion-one-alpha.vercel.app",
         ]
         if value is None or value == "":
@@ -145,12 +143,7 @@ class Settings(BaseSettings):
             if s and s not in cleaned:
                 cleaned.append(s)
 
-        # Always ensure standard localhost and production vercel are included
-        for fallback in default_origins:
-            if fallback not in cleaned:
-                cleaned.append(fallback)
-
-        return cleaned
+        return cleaned if cleaned else default_origins
 
 
 @lru_cache

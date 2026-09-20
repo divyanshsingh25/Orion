@@ -1,3 +1,4 @@
+import os
 import pytest
 from starlette.testclient import TestClient
 
@@ -6,26 +7,46 @@ from app.main import app
 from app.scanner.orchestrator import OrionScanner
 
 
-def test_cors_settings_parsing():
-    # 1. Comma-separated with trailing slashes & spaces
-    s1 = Settings(cors_origins="http://localhost:5173, https://orion-one-alpha.vercel.app/")
-    assert "https://orion-one-alpha.vercel.app" in s1.cors_origins
-    assert "http://localhost:5173" in s1.cors_origins
+def test_cors_settings_from_env_json(monkeypatch):
+    monkeypatch.setenv("ORION_CORS_ORIGINS", '["https://orion-one-alpha.vercel.app","http://localhost:5173"]')
+    s = Settings()
+    assert s.cors_origins == [
+        "https://orion-one-alpha.vercel.app",
+        "http://localhost:5173",
+    ]
 
-    # 2. JSON array string
-    s2 = Settings(cors_origins='["http://localhost:5173", "https://orion-one-alpha.vercel.app"]')
-    assert "https://orion-one-alpha.vercel.app" in s2.cors_origins
-    assert "http://localhost:5173" in s2.cors_origins
 
-    # 3. Default fallback
-    s3 = Settings(cors_origins=None)
-    assert "https://orion-one-alpha.vercel.app" in s3.cors_origins
-    assert "http://localhost:5173" in s3.cors_origins
+def test_cors_settings_from_env_comma(monkeypatch):
+    monkeypatch.setenv("ORION_CORS_ORIGINS", "https://orion-one-alpha.vercel.app,http://localhost:5173")
+    s = Settings()
+    assert s.cors_origins == [
+        "https://orion-one-alpha.vercel.app",
+        "http://localhost:5173",
+    ]
+
+
+def test_cors_settings_from_env_quoted_comma(monkeypatch):
+    monkeypatch.setenv("ORION_CORS_ORIGINS", ' "https://orion-one-alpha.vercel.app" , "http://localhost:5173" ')
+    s = Settings()
+    assert s.cors_origins == [
+        "https://orion-one-alpha.vercel.app",
+        "http://localhost:5173",
+    ]
+
+
+def test_cors_settings_default(monkeypatch):
+    monkeypatch.delenv("ORION_CORS_ORIGINS", raising=False)
+    monkeypatch.delenv("CORS_ORIGINS", raising=False)
+    s = Settings(_env_file=None)
+    assert s.cors_origins == [
+        "http://localhost:5173",
+        "https://orion-one-alpha.vercel.app",
+    ]
 
 
 def test_cors_preflight_options():
     client = TestClient(app)
-    
+
     # Preflight from Vercel frontend
     response = client.options(
         "/api/v1/auth/register",
