@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
     api_v1_prefix: str = "/api/v1"
     frontend_url: str = Field(
-        default="https://orion-1nhcx0zfp6-noaar.vercel.app",
+        default="https://orion-one-alpha.vercel.app",
         validation_alias=AliasChoices("FRONTEND_URL", "ORION_FRONTEND_URL"),
     )
     cors_origins: Annotated[List[str], NoDecode] = Field(

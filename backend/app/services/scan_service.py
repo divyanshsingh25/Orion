@@ -217,10 +217,22 @@ class ScanService:
         async def progress_callback(payload: dict[str, Any]) -> None:
             await self._update_scan_progress(scan, payload)
             # Forward all fields to WebSocket, including log, module_info, counters
-            ws_payload = {"scan_id": scan.id, **payload}
-            await connection_manager.broadcast(scan.id, ws_payload)
+        logger.info(
+            "[SCAN_START] scan_id=%s target=%s scan_type=%s execution_mode=%s",
+            scan.id,
+            target.url,
+            scan.scan_type,
+            "celery" if getattr(self.settings, "use_celery", False) else "asyncio_task",
+        )
+        logger.info(
+            "[SCANNER_INIT] scan_id=%s adapter=%s modules_count=%d",
+            scan.id,
+            self.scanner.__class__.__name__,
+            len(getattr(self.scanner, "scanner_types", {})),
+        )
 
         try:
+            logger.info("[TARGET_REQUEST_START] scan_id=%s target=%s", scan.id, target.url)
             assessment = await self.scanner.scan(
                 target.url,
                 scan.scan_type,
@@ -230,6 +242,7 @@ class ScanService:
             )
             created_findings = await self._persist_findings(scan, assessment["findings"])
             scan.total_findings = len(created_findings)
+            logger.info("[SCAN_PERSIST] scan_id=%s findings_persisted=%d", scan.id, len(created_findings))
             scan.statistics_json = assessment["statistics"]
             scan.summary_json = {"recon": assessment["recon"], "ai_context": assessment["ai_context"]}
             scan.status = "completed"
@@ -238,6 +251,7 @@ class ScanService:
             scan.current_url = target.url
             scan.completed_at = datetime.now(UTC)
             scan.duration_seconds = assessment["duration_seconds"]
+            logger.info("[SCAN_COMPLETE] scan_id=%s duration=%.2fs total_findings=%d", scan.id, scan.duration_seconds or 0.0, scan.total_findings)
 
             # --- Persist real recon data ---
             scan.recon_dns_json = assessment.get("dns_data")
@@ -347,7 +361,7 @@ class ScanService:
             })
             raise
         except Exception as exc:
-            logger.exception("Scan %s failed: %s", scan_id, exc)
+            logger.exception("[SCAN_FAILURE] scan_id=%s error_type=%s error_message=%s", scan_id, type(exc).__name__, exc)
             try:
                 await self.db.rollback()
                 result = await self.db.execute(select(Scan).where(Scan.id == scan_id))
