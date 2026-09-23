@@ -167,17 +167,17 @@ export function VulnerabilitiesPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1080px] border-collapse text-left">
+          <table className="w-full min-w-[950px] border-collapse text-left">
             <thead className="bg-slate-950/[0.025] dark:bg-white/[0.03]">
               <tr className="h-12 text-[12px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                <th className="px-5">Finding</th>
-                <th className="px-5">Asset</th>
-                <th className="px-5">OWASP</th>
-                <th className="px-5">CWE</th>
-                <th className="px-5">CVSS</th>
-                <th className="px-5">Severity</th>
-                <th className="px-5">Status</th>
-                <th className="px-5" />
+                <th className="px-4 py-3.5">Finding</th>
+                <th className="w-[180px] px-3.5 py-3.5">Asset</th>
+                <th className="w-[120px] px-3.5 py-3.5">OWASP</th>
+                <th className="w-[90px] px-3.5 py-3.5">CWE</th>
+                <th className="w-[130px] px-3.5 py-3.5">CVSS</th>
+                <th className="w-[100px] px-3.5 py-3.5">Severity</th>
+                <th className="w-[90px] px-3.5 py-3.5">Status</th>
+                <th className="w-[56px] px-3.5 py-3.5 text-right" />
               </tr>
             </thead>
             <tbody>
@@ -200,7 +200,7 @@ export function VulnerabilitiesPage() {
                 groupedFindings.map((group) => (
                   <React.Fragment key={group.id}>
                     <tr className={cn("border-t border-border/70 align-top transition hover:bg-cyan-400/[0.045]", expanded === group.id && "bg-cyan-400/[0.025]")}>
-                      <td className="px-5 py-4">
+                      <td className="px-4 py-3.5">
                         <div className="text-[15px] font-bold">
                           {group.title}
                           {group.count > 1 && (
@@ -211,28 +211,32 @@ export function VulnerabilitiesPage() {
                         </div>
                         <div className="mt-1 font-mono text-[12px] font-bold text-muted-foreground">{group.id}</div>
                       </td>
-                      <td className="px-5 py-4 font-mono text-[14px] font-bold">
+                      <td className="px-3.5 py-3.5 font-mono text-[14px] font-bold">
                         {group.count === 1 ? (
                           <div className="max-w-[200px] truncate" title={group.asset}>{group.asset}</div>
                         ) : (
                           <div className="text-cyan-600 dark:text-cyan-400">Multiple Assets</div>
                         )}
                       </td>
-                      <td className="px-5 py-4 text-[14px] font-bold text-muted-foreground">{group.owasp}</td>
-                      <td className="px-5 py-4 text-[14px] font-bold text-muted-foreground">{group.cwe}</td>
-                      <td className="px-5 py-4"><div className="flex min-w-[100px] items-center gap-3"><span className="font-mono text-[15px] font-bold">{group.cvss}</span><ProgressBar value={group.cvss * 10} tone={group.cvss >= 8 ? "red" : group.cvss >= 7 ? "amber" : "cyan"} className="h-2 flex-1" /></div></td>
-                      <td className="px-5 py-4"><Badge tone={severityTone[group.severity] || "low"}>{group.severity}</Badge></td>
-                    <td className="px-5 py-4"><Badge tone={group.status === "Open" ? "running" : group.status === "In Review" ? "medium" : "neutral"}>{group.status}</Badge></td>
-                    <td className="px-5 py-4 text-right">
-                      <button 
-                        type="button" 
-                        onClick={() => setExpanded(expanded === group.id ? "" : group.id)} 
-                        className="rounded-full border border-border/70 p-2 transition hover:border-cyan-300 hover:text-cyan-500"
-                      >
-                        <ChevronDown className={cn("h-4 w-4 transition", expanded === group.id && "rotate-180")} />
-                      </button>
-                    </td>
-                  </tr>
+                      <td className="px-3.5 py-3.5 text-[13px] font-bold text-muted-foreground whitespace-nowrap">{group.owasp}</td>
+                      <td className="px-3.5 py-3.5 text-[13px] font-bold text-muted-foreground whitespace-nowrap">{group.cwe}</td>
+                      <td className="px-3.5 py-3.5"><div className="flex min-w-[100px] items-center gap-2.5"><span className="font-mono text-[15px] font-bold">{group.cvss}</span><ProgressBar value={group.cvss * 10} tone={group.cvss >= 8 ? "red" : group.cvss >= 7 ? "amber" : "cyan"} className="h-2 flex-1" /></div></td>
+                      <td className="px-3.5 py-3.5 whitespace-nowrap"><Badge tone={severityTone[group.severity] || "low"}>{group.severity}</Badge></td>
+                      <td className="px-3.5 py-3.5 whitespace-nowrap"><Badge tone={group.status === "Open" ? "running" : group.status === "In Review" ? "medium" : "neutral"}>{group.status}</Badge></td>
+                      <td className="w-[56px] px-3.5 py-3.5 text-right whitespace-nowrap">
+                        <button 
+                          type="button" 
+                          onClick={() => setExpanded(expanded === group.id ? "" : group.id)} 
+                          className={cn(
+                            "inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/80 bg-muted/40 transition-colors hover:border-cyan-400 hover:bg-cyan-500/15 hover:text-cyan-400",
+                            expanded === group.id && "border-cyan-400 bg-cyan-500/20 text-cyan-400 shadow-sm"
+                          )}
+                          title={expanded === group.id ? "Collapse details" : "Expand details"}
+                        >
+                          <ChevronDown className={cn("h-4 w-4 stroke-[2.5] transition-transform duration-200", expanded === group.id && "rotate-180")} />
+                        </button>
+                      </td>
+                    </tr>
                   {expanded === group.id && (
                     <tr className="bg-background/[0.25]">
                       <td colSpan={8} className="px-5 py-6">
