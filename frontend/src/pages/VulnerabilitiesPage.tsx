@@ -143,11 +143,11 @@ export function VulnerabilitiesPage() {
             <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input value={query} onChange={(event) => setQuery(event.target.value)} className="pl-11" placeholder="Search by asset, CWE, OWASP, title..." />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="relative flex items-center">
             <select 
               value={selectedScanId} 
               onChange={(e) => setSelectedScanId(e.target.value)}
-              className="h-11 rounded-[13px] border border-border/70 bg-card/70 px-4 text-[14px] font-bold outline-none focus:border-cyan-500"
+              className="h-11 appearance-none cursor-pointer rounded-[13px] border border-border/70 bg-card/70 pl-4 pr-10 text-[14px] font-bold text-foreground outline-none transition-colors hover:border-cyan-500/60 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
             >
               <option value="">All Time Findings</option>
               {scanHistory.map((scan: any) => (
@@ -156,6 +156,7 @@ export function VulnerabilitiesPage() {
                 </option>
               ))}
             </select>
+            <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-cyan-400 stroke-[2.5]" />
           </div>
           <div className="flex rounded-[14px] border border-border/70 bg-background/60 p-1">
             {filters.map((filter) => (

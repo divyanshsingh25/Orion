@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { Bot, CheckCircle2, SendHorizonal, Sparkles, Pin, PinOff, Trash2 } from "lucide-react";
+import { Bot, CheckCircle2, ChevronDown, SendHorizonal, Sparkles, Pin, PinOff, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { MarkdownText } from "@/components/MarkdownText";
@@ -121,14 +121,17 @@ export function AiPanel({ risks, messages = [], defaultMessage, domains = [], vu
 
         <div className="flex shrink-0 items-center gap-1.5">
           {domains.length > 0 && (
-            <select 
-              onChange={handleDomainSelect} 
-              defaultValue=""
-              className="h-7 cursor-pointer rounded-lg border border-border/80 bg-muted/50 px-2 text-[12px] font-medium text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus:border-cyan-400 transition max-w-[120px]"
-            >
-              <option value="" disabled hidden>Ask Target...</option>
-              {domains.map(d => <option key={d} value={d}>{d}</option>)}
-            </select>
+            <div className="relative flex items-center">
+              <select 
+                onChange={handleDomainSelect} 
+                defaultValue=""
+                className="h-7 appearance-none cursor-pointer rounded-lg border border-border/80 bg-muted/50 pl-2 pr-6 text-[12px] font-medium text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus:border-cyan-400 transition max-w-[130px]"
+              >
+                <option value="" disabled hidden>Ask Target...</option>
+                {domains.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-cyan-400 stroke-[2.5]" />
+            </div>
           )}
           <button 
             onClick={() => setChat([])} 
