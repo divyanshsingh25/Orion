@@ -154,14 +154,17 @@ class ProxyContextManager:
         if now - self.proxy.last_log_time > 0.5:
             self.proxy.last_log_time = now
             msg = f"[{self.proxy.module_name.upper()}] Probing {self.method} {self.url}"
-            asyncio.create_task(self.proxy.orchestrator._emit(
-                self.proxy.progress,
-                self.proxy.orchestrator._build_payload(
-                    self.proxy.counters, self.proxy.step_progress, self.proxy.module_label, self.proxy.target_url,
-                    event="terminal_log",
-                    log={"level": "SCAN", "message": msg}
+            try:
+                await self.proxy.orchestrator._emit(
+                    self.proxy.progress,
+                    self.proxy.orchestrator._build_payload(
+                        self.proxy.counters, self.proxy.step_progress, self.proxy.module_label, self.proxy.target_url,
+                        event="terminal_log",
+                        log={"level": "SCAN", "message": msg}
+                    )
                 )
-            ))
+            except Exception:
+                pass
         try:
             self.resp = await self.proxy.safety.safe_request(self.proxy.session, self.method, self.url, **self.kwargs)
         except Exception:
@@ -1444,6 +1447,9 @@ class OrionScanner:
     async def _emit(self, progress: ProgressCallback | None, payload: dict[str, Any]) -> None:
         if progress is None:
             return
-        result = progress(payload)
-        if asyncio.iscoroutine(result):
-            await result
+        try:
+            result = progress(payload)
+            if asyncio.iscoroutine(result):
+                await result
+        except Exception:
+            pass

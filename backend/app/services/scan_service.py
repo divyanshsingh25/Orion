@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 from datetime import UTC, datetime, timezone
 from typing import Any
 
@@ -127,6 +128,8 @@ class ScanService:
         self.ai_verifier = AIVerifier(self.settings)
         self.report_service = ReportService(db)
         self.scanner = OrionScanner()
+        self._progress_lock = asyncio.Lock()
+        self._last_db_commit = 0.0
 
     async def create_scan(self, user: User, payload: ScanCreateRequest) -> ScanRead:
         target = await self.target_service.get_target(user, payload.target_id)
@@ -216,7 +219,10 @@ class ScanService:
 
         async def progress_callback(payload: dict[str, Any]) -> None:
             await self._update_scan_progress(scan, payload)
-            # Forward all fields to WebSocket, including log, module_info, counters
+            try:
+                await connection_manager.broadcast(scan.id, payload)
+            except Exception:
+                pass
         logger.info(
             "[SCAN_START] scan_id=%s target=%s scan_type=%s execution_mode=%s",
             scan.id,
@@ -594,10 +600,19 @@ class ScanService:
                     m["status"] = "Queued"
                     m["progress"] = 0
 
-        try:
-            await self.db.commit()
-        except Exception:
-            await self.db.rollback()
+        # Throttle DB commits to prevent high-frequency write contention and async session collisions
+        now = time.monotonic()
+        if (now - self._last_db_commit > 1.5) or (scan.progress_percent >= 100):
+            self._last_db_commit = now
+            if not self._progress_lock.locked():
+                async with self._progress_lock:
+                    try:
+                        await self.db.commit()
+                    except Exception:
+                        try:
+                            await self.db.rollback()
+                        except Exception:
+                            pass
 
     async def _persist_findings(self, scan: Scan, findings: list[dict[str, Any]]) -> list[Finding]:
         persisted: list[Finding] = []
