@@ -101,6 +101,8 @@ def test_deduplication_identical_endpoint_merged():
 
 async def test_postgresql_tenant_isolation_and_websocket_auth():
     """Verify PostgreSQL tenant data isolation and WebSocket authorization logic."""
+    from app.database.session import async_engine
+    await async_engine.dispose()
     async with AsyncSessionLocal() as session:
         # 1. Fetch admin and any other user or create test users
         admin_res = await session.execute(select(User).where(User.email == "admin@orion.sec"))

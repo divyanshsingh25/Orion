@@ -158,7 +158,7 @@ class EvidenceCollector:
         method = finding.get("method", "GET").upper()
         payload = finding.get("payload")
 
-        if not url:
+        if not url or not url.startswith(("http://", "https://")):
             return finding
 
         kwargs: dict[str, Any] = {}

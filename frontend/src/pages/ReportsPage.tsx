@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Calendar, Download, FileCheck, FileText, Globe, Layers, Presentation, ShieldCheck, Trash2, Sparkles } from "lucide-react";
+import { Calendar, Download, FileCheck, FileText, Globe, Layers, Presentation, Search, ShieldCheck, Trash2, Sparkles, X } from "lucide-react";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,16 +53,49 @@ function getScoreDetails(rawScore: number) {
 
 export function ReportsPage() {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlSearch = searchParams.get("search") || searchParams.get("q") || "";
+  const [searchQuery, setSearchQuery] = useState(urlSearch);
+
   const { data } = useQuery({ queryKey: ["reports"], queryFn: getDashboardData });
   const reports = (data?.reports ?? []) as ReportItem[];
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const activeReport = (selectedId ? reports.find((r) => (r.id || r.name) === selectedId) : null) || reports[0];
+  useEffect(() => {
+    setSearchQuery(urlSearch);
+  }, [urlSearch]);
+
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    if (val.trim()) {
+      setSearchParams({ search: val.trim() }, { replace: true });
+    } else {
+      setSearchParams({}, { replace: true });
+    }
+  };
+
+  const filteredReports = useMemo(() => {
+    if (!searchQuery.trim()) return reports;
+    const q = searchQuery.toLowerCase().trim();
+    return reports.filter((r) => {
+      const meta = parseReportMeta(r.name);
+      return (
+        meta.target.toLowerCase().includes(q) ||
+        r.name.toLowerCase().includes(q) ||
+        r.type.toLowerCase().includes(q) ||
+        r.status.toLowerCase().includes(q) ||
+        r.updated.toLowerCase().includes(q) ||
+        (r.audience && r.audience.toLowerCase().includes(q))
+      );
+    });
+  }, [reports, searchQuery]);
+
+  const activeReport = (selectedId ? filteredReports.find((r) => (r.id || r.name) === selectedId) : null) || filteredReports[0] || reports[0];
   const activeMeta = activeReport ? parseReportMeta(activeReport.name) : null;
   const activeScore = activeReport ? getScoreDetails(activeReport.score) : null;
 
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="pb-32">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="section-label mb-3">Executive Outputs</div>
@@ -72,8 +106,16 @@ export function ReportsPage() {
           <div className="flex gap-3">
             <Button
               className="h-10 px-4 font-semibold"
-              disabled={!activeReport.id}
-              onClick={() => activeReport.id && downloadReport(activeReport.id, `${activeReport.name}.pdf`)}
+              disabled={!activeReport.id && !activeReport.scan_id}
+              onClick={async () => {
+                if (activeReport.id) {
+                  downloadReport(activeReport.id, `${activeReport.name}.pdf`);
+                } else if (activeReport.scan_id) {
+                  const gen = await generateReport(activeReport.scan_id, "pdf");
+                  if (gen?.id) downloadReport(gen.id, `${activeReport.name}.pdf`);
+                  queryClient.invalidateQueries({ queryKey: ["reports"] });
+                }
+              }}
             >
               <Download className="h-4 w-4" />
               Export PDF
@@ -94,14 +136,42 @@ export function ReportsPage() {
         )}
       </div>
 
-      <div className="mt-7 grid gap-6 xl:grid-cols-[1fr_1.15fr]">
+      <div className="mt-7 grid gap-6 xl:grid-cols-[1fr_1.15fr] items-start">
         {/* Left Column: Report List */}
         <section className="space-y-4">
-          <div className="flex items-center justify-between px-1">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
             <h2 className="text-[17px] font-bold text-muted-foreground uppercase tracking-wider">
-              Generated Reports ({reports.length})
+              {searchQuery.trim() ? (
+                <>Search Results ({filteredReports.length} of {reports.length})</>
+              ) : (
+                <>Generated Reports ({reports.length})</>
+              )}
             </h2>
-            <span className="text-[13px] text-muted-foreground">Select a report to preview</span>
+            <span className="text-[13px] text-muted-foreground">
+              {filteredReports.length > 0 ? "Select a report to preview" : "No matching reports"}
+            </span>
+          </div>
+
+          {/* Search Input Filter */}
+          <div className="relative">
+            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Search all reports by target, filename, date, or status..."
+              className="h-11 w-full rounded-[14px] border border-border/70 bg-card/60 pl-10 pr-10 text-[14px] font-medium text-foreground placeholder:text-muted-foreground shadow-sm transition focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/20"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => handleSearchChange("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                title="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
 
           {reports.length === 0 ? (
@@ -110,8 +180,23 @@ export function ReportsPage() {
               <h3 className="mt-3 text-[16px] font-bold text-foreground">No reports generated yet</h3>
               <p className="mt-1 text-[13px]">Launch a security assessment to generate automated board reports.</p>
             </div>
+          ) : filteredReports.length === 0 ? (
+            <div className="panel p-8 text-center text-muted-foreground">
+              <FileText className="mx-auto h-12 w-12 opacity-30" />
+              <h3 className="mt-3 text-[16px] font-bold text-foreground">No reports matching "{searchQuery}"</h3>
+              <p className="mt-1 text-[13px]">Try searching with a different domain, keyword, or clear the search filter.</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-4 gap-1.5"
+                onClick={() => handleSearchChange("")}
+              >
+                <X className="h-3.5 w-3.5" />
+                Clear search filter
+              </Button>
+            </div>
           ) : (
-            reports.map((report) => {
+            filteredReports.map((report) => {
               const meta = parseReportMeta(report.name);
               const scoreInfo = getScoreDetails(report.score);
               const isSelected = activeReport?.name === report.name;
@@ -234,7 +319,7 @@ export function ReportsPage() {
         </section>
 
         {/* Right Column: Live Report Preview */}
-        <section className="panel overflow-hidden sticky top-6">
+        <section className="panel overflow-y-auto sticky top-[96px] max-h-[calc(100vh-120px)]">
           <div className="border-b border-border/70 p-6 flex items-center justify-between">
             <div>
               <h2 className="text-[22px] font-bold">Executive Risk Brief</h2>

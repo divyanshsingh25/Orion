@@ -80,14 +80,36 @@ class DashboardService:
         return list(result.scalars().all())
 
     async def _reports(self, user_id: str) -> list[ReportItemRead]:
-        result = await self.db.execute(select(Report).join(Report.scan).where(Scan.user_id == user_id).order_by(Report.generated_at.desc()).limit(10))
+        result = await self.db.execute(
+            select(Report)
+            .join(Report.scan)
+            .where(Scan.user_id == user_id)
+            .order_by(Report.generated_at.desc())
+        )
         items = []
         for report in result.scalars().all():
-            items.append(ReportItemRead(id=report.id, scan_id=report.scan_id, name=Path(report.file_path).name if report.file_path else f"Report {report.id}", type=report.report_format.upper(), audience="Executive", updated=report.generated_at.strftime("%Y-%m-%d %H:%M UTC"), pages=max(1, min(20, report.file_size or 1)), status="Ready", score=int(report.overall_risk_score)))
+            items.append(
+                ReportItemRead(
+                    id=report.id,
+                    scan_id=report.scan_id,
+                    name=Path(report.file_path).name if report.file_path else f"Report {report.id}",
+                    type=report.report_format.upper(),
+                    audience="Executive",
+                    updated=report.generated_at.strftime("%Y-%m-%d %H:%M UTC"),
+                    pages=max(1, min(20, report.file_size or 1)),
+                    status="Ready",
+                    score=int(report.overall_risk_score),
+                )
+            )
         return items
 
     async def _scan_history(self, user_id: str) -> list[dict[str, Any]]:
-        result = await self.db.execute(select(Scan, Target).join(Target, Scan.target_id == Target.id).where(Scan.user_id == user_id).order_by(Scan.created_at.desc()).limit(10))
+        result = await self.db.execute(
+            select(Scan, Target)
+            .join(Target, Scan.target_id == Target.id)
+            .where(Scan.user_id == user_id)
+            .order_by(Scan.created_at.desc())
+        )
         rows: list[dict[str, Any]] = []
         for scan, target in result.all():
             findings_result = await self.db.execute(select(Finding.severity, func.count()).where(Finding.scan_id == scan.id).group_by(Finding.severity))

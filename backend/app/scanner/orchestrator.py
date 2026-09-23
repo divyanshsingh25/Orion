@@ -139,6 +139,74 @@ class _TargetHTMLParser(HTMLParser):
             self._current_form = None
 
 
+class ProxyContextManager:
+    """Async context manager for proxying hacktheweb requests."""
+    def __init__(self, proxy, method, url, **kwargs):
+        self.proxy = proxy
+        self.method = method
+        self.url = url
+        self.kwargs = kwargs
+        self.resp = None
+
+    async def __aenter__(self):
+        self.proxy.counters.requests_made += 1
+        now = time.monotonic()
+        if now - self.proxy.last_log_time > 0.5:
+            self.proxy.last_log_time = now
+            msg = f"[{self.proxy.module_name.upper()}] Probing {self.method} {self.url}"
+            asyncio.create_task(self.proxy.orchestrator._emit(
+                self.proxy.progress,
+                self.proxy.orchestrator._build_payload(
+                    self.proxy.counters, self.proxy.step_progress, self.proxy.module_label, self.proxy.target_url,
+                    event="terminal_log",
+                    log={"level": "SCAN", "message": msg}
+                )
+            ))
+        try:
+            self.resp = await self.proxy.safety.safe_request(self.proxy.session, self.method, self.url, **self.kwargs)
+        except Exception:
+            self.resp = None
+
+        if self.resp is None:
+            class DummyResponse:
+                status = 0
+                reason = "Blocked"
+                headers = {}
+                cookies = {}
+                url = self.url
+                def __init__(self): pass
+                async def text(self, *args, **kwargs): return ""
+                async def json(self, *args, **kwargs): return {}
+                async def read(self, *args, **kwargs): return b""
+            return DummyResponse()
+        
+        return await self.resp.__aenter__()
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.resp and hasattr(self.resp, '__aexit__'):
+            await self.resp.__aexit__(exc_type, exc_val, exc_tb)
+
+
+class ScannerSessionProxy:
+    """Proxies HTTP requests from hacktheweb to enforce safety and log progress."""
+    def __init__(self, session, safety, orchestrator, module_name, module_label, counters, progress, step_progress, target_url):
+        self.session = session
+        self.safety = safety
+        self.orchestrator = orchestrator
+        self.module_name = module_name
+        self.module_label = module_label
+        self.counters = counters
+        self.progress = progress
+        self.step_progress = step_progress
+        self.target_url = target_url
+        self.last_log_time = 0.0
+
+    def get(self, url, **kwargs):
+        return ProxyContextManager(self, "GET", url, **kwargs)
+
+    def post(self, url, **kwargs):
+        return ProxyContextManager(self, "POST", url, **kwargs)
+
 class OrionScanner:
     def __init__(self) -> None:
         self.settings = get_settings()
@@ -360,7 +428,7 @@ class OrionScanner:
                         ))
 
                 try:
-                    open_ports = await scan_ports(host, emit=port_emit)
+                    open_ports = await run_port_scan(host, emit=port_emit)
                     counters.open_ports = len(open_ports)
                     await self._emit(progress, self._build_payload(
                         counters, 20, "Port Scanning", target_url,
@@ -384,7 +452,7 @@ class OrionScanner:
                 ))
 
             # ============================================================
-            # Phase 4: Service Detection (20–25%)
+            # Phase 4: Service Detection & CVE Lookup (20–25%)
             # ============================================================
             services = []
             if open_ports:
@@ -395,19 +463,63 @@ class OrionScanner:
                     module_info={"name": "Service Fingerprinting", "status": "Scanning", "findings": 0},
                 ))
                 try:
-                    services = await detect_services(host, open_ports)
-                    counters.services_identified = len(services)
+                    services = detect_services(open_ports, http_headers=http_headers)
+                    counters.services_detected = len(services)
                     await self._emit(progress, self._build_payload(
-                        counters, 25, "Service Detection", target_url,
+                        counters, 23, "Service Detection", target_url,
                         event="recon_step",
                         log={"level": "SCAN", "message": f"[SERVICE] Completed - {len(services)} services fingerprinted"},
-                        module_info={"name": "Service Fingerprinting", "status": "Complete", "findings": 0},
+                        module_info={"name": "Service Fingerprinting", "status": "Scanning", "findings": 0},
                     ))
                 except Exception as exc:
                     await self._emit(progress, self._build_payload(
-                        counters, 25, "Service Detection", target_url,
+                        counters, 23, "Service Detection", target_url,
                         event="recon_step",
                         log={"level": "WARN", "message": f"[SERVICE] Service detection error: {exc}"},
+                        module_info={"name": "Service Fingerprinting", "status": "Scanning", "findings": 0},
+                    ))
+
+                # CVE Intelligence Lookup for detected services
+                if services:
+                    try:
+                        cve_findings = lookup_cves(services)
+                        for cf in cve_findings:
+                            normalized = self._normalize_finding(cf, target_url, "cve_lookup", None)
+                            raw_findings.append(normalized)
+                            counters.findings_count += 1
+                            await self._emit(progress, self._build_payload(
+                                counters, 24, "Service Detection", target_url,
+                                event="finding",
+                                finding=normalized,
+                                log={"level": "FOUND", "message": f"[CVE] {cf.get('title', 'Known CVE detected')}"},
+                                module_info={"name": "Service Fingerprinting", "status": "Scanning", "findings": len(cve_findings)},
+                            ))
+                        if cve_findings:
+                            await self._emit(progress, self._build_payload(
+                                counters, 25, "Service Detection", target_url,
+                                event="recon_step",
+                                log={"level": "INFO", "message": f"[CVE] Identified {len(cve_findings)} potential CVEs for detected services"},
+                                module_info={"name": "Service Fingerprinting", "status": "Complete", "findings": len(cve_findings)},
+                            ))
+                        else:
+                            await self._emit(progress, self._build_payload(
+                                counters, 25, "Service Detection", target_url,
+                                event="recon_step",
+                                log={"level": "INFO", "message": "[CVE] No known CVEs matched for detected service versions"},
+                                module_info={"name": "Service Fingerprinting", "status": "Complete", "findings": 0},
+                            ))
+                    except Exception as exc:
+                        await self._emit(progress, self._build_payload(
+                            counters, 25, "Service Detection", target_url,
+                            event="recon_step",
+                            log={"level": "WARN", "message": f"[CVE] Lookup error: {exc}"},
+                            module_info={"name": "Service Fingerprinting", "status": "Complete", "findings": 0},
+                        ))
+                else:
+                    await self._emit(progress, self._build_payload(
+                        counters, 25, "Service Detection", target_url,
+                        event="recon_step",
+                        log={"level": "INFO", "message": "[SERVICE] No services identified from open ports"},
                         module_info={"name": "Service Fingerprinting", "status": "Complete", "findings": 0},
                     ))
             else:
@@ -421,7 +533,7 @@ class OrionScanner:
             # ============================================================
             # Phase 5: OS Detection (25–30%)
             # ============================================================
-            os_info: dict[str, Any] = {"os": "Unknown"}
+            os_info: dict[str, Any] = {"os": "Unknown", "confidence": "Low", "evidence": ["Not fingerprinted"]}
             await self._emit(progress, self._build_payload(
                 counters, 26, "OS Detection", target_url,
                 event="recon_step",
@@ -429,24 +541,30 @@ class OrionScanner:
                 module_info={"name": "OS Fingerprinting", "status": "Scanning", "findings": 0},
             ))
             try:
-                os_intel = await detect_operating_system(
+                os_intel = detect_os(
                     host,
                     open_ports=open_ports,
                     http_headers=http_headers,
-                    technologies=technologies,
                 )
-                detected_os = os_intel.get("name", "Unknown")
-                detected_family = os_intel.get("family", "")
-                os_info = {"os": detected_os, "name": detected_os, "family": detected_family, "details": os_intel}
-                await self._emit(progress, self._build_payload(
-                    counters, 30, "OS Detection", target_url,
-                    event="recon_step",
-                    log={"level": "INFO", "message": f"[OS] Fingerprinted: {detected_os} ({detected_family})"},
-                    module_info={"name": "OS Fingerprinting", "status": "Complete", "findings": 0},
-                ))
+                detected_os = os_intel.get("os", "Unknown")
+                confidence = os_intel.get("confidence", "Low")
+                os_info = os_intel
+                if detected_os and detected_os != "Unknown":
+                    await self._emit(progress, self._build_payload(
+                        counters, 30, "OS Detection", target_url,
+                        event="recon_step",
+                        log={"level": "INFO", "message": f"[OS] Fingerprinted: {detected_os} (Confidence: {confidence})"},
+                        module_info={"name": "OS Fingerprinting", "status": "Complete", "findings": 0},
+                    ))
+                else:
+                    await self._emit(progress, self._build_payload(
+                        counters, 30, "OS Detection", target_url,
+                        event="recon_step",
+                        log={"level": "INFO", "message": "[OS] Operating system could not be confidently determined from available evidence"},
+                        module_info={"name": "OS Fingerprinting", "status": "Complete", "findings": 0},
+                    ))
             except Exception as exc:
-                detected_os = "Unknown"
-                os_info = {"os": "Unknown"}
+                os_info = {"os": "Unknown", "confidence": "Low", "evidence": [f"Detection error: {exc}"]}
                 await self._emit(progress, self._build_payload(
                     counters, 30, "OS Detection", target_url,
                     event="recon_step",
@@ -474,7 +592,7 @@ class OrionScanner:
                         module_info={"name": "Web & SPA Crawler", "status": "Scanning", "findings": 0},
                     ))
 
-            max_pages = 100 if depth.lower() == "high" else (15 if depth.lower() == "low" else 40)
+            max_pages = 100 if str(depth).lower() == "high" else (15 if str(depth).lower() == "low" else 40)
             if is_quick:
                 max_pages = min(max_pages, 8)
 
@@ -696,6 +814,12 @@ class OrionScanner:
             scanner_plan = self._plan_modules_from_recon(recon_dict, scan_mode, ai_context)
             counters.modules_total = len(scanner_plan)
 
+            await self._emit(progress, self._build_payload(
+                counters, 54, "Vulnerability Scanners", target_url,
+                event="terminal_log",
+                log={"level": "SCAN", "message": f"[RECON] Discovered {len(all_forms)} forms and {len(all_inputs)} parameters for injection testing"}
+            ))
+
             for index, module_name in enumerate(scanner_plan, start=1):
                 if safety.is_scan_expired():
                     await self._emit(progress, self._build_payload(
@@ -718,7 +842,11 @@ class OrionScanner:
                 ))
 
                 scanner_cls = self.scanner_types[module_name]
-                scanner = scanner_cls(self.hack_cfg, session)
+                proxy_session = ScannerSessionProxy(
+                    session, safety, self, module_name, module_label, 
+                    counters, progress, step_progress_start, target_url
+                )
+                scanner = scanner_cls(self.hack_cfg, proxy_session)
                 if is_quick:
                     module_budget = 35.0
                 else:

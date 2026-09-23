@@ -25,7 +25,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { clearAuthTokens, getActiveScan, type ScanDetail } from "@/services/api";
 
 const navItems = [
-  { label: "Dashboard", href: "/", icon: Grid2X2 },
+  { label: "Dashboard", href: "/dashboard", icon: Grid2X2 },
   { label: "New Scan", href: "/new-scan", icon: ScanLine },
   { label: "Live Scan", href: "/live-scan", icon: Activity },
   { label: "Scan History", href: "/scan-history", icon: RadioTower },
@@ -107,9 +107,9 @@ export function Sidebar() {
       >
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_0%,rgba(14,165,233,0.22),transparent_34%),linear-gradient(180deg,rgba(15,23,42,0.2),rgba(2,6,23,0.72))]" />
       <div className="relative flex h-[86px] shrink-0 items-center border-b border-white/10 px-4">
-        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-gradient-to-br from-cyan-400 via-sky-500 to-blue-700 text-white shadow-[0_14px_32px_rgba(14,165,233,0.35)]">
-          <ShieldCheck className="h-7 w-7" strokeWidth={2.5} />
-          <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-sidebar bg-emerald-400" />
+        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-gradient-to-br from-cyan-400/20 via-sky-500/20 to-blue-700/20 shadow-[0_14px_32px_rgba(14,165,233,0.15)] overflow-hidden">
+          <img src="/orion-logo.png" alt="Orion Logo" className="h-full w-full object-cover scale-110" />
+          <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-sidebar bg-emerald-400 z-10" />
         </div>
         <motion.div
           animate={{ opacity: collapsed ? 0 : 1, x: collapsed ? -8 : 0 }}

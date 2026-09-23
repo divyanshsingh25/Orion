@@ -11,7 +11,16 @@ import { getDashboardData, getFindings } from "@/services/api";
 import type { SeverityName, Vulnerability } from "@/types/dashboard";
 import { cn } from "@/utils/cn";
 
-const severityTone = { Critical: "critical", High: "high", Medium: "medium", Low: "low" } as const;
+const severityTone: Record<string, "critical" | "high" | "medium" | "low"> = {
+  critical: "critical",
+  high: "high",
+  medium: "medium",
+  low: "low",
+  Critical: "critical",
+  High: "high",
+  Medium: "medium",
+  Low: "low",
+};
 const filters: Array<"All" | SeverityName> = ["All", "Critical", "High", "Medium", "Low"];
 
 export function VulnerabilitiesPage() {
@@ -46,17 +55,18 @@ export function VulnerabilitiesPage() {
     }
   }, [initialScanId, initialDomain, scanHistory]);
 
-  const { data: findingsData } = useQuery({ 
-    queryKey: ["vulnerabilities", selectedScanId], 
-    queryFn: () => getFindings(selectedScanId || undefined) 
+  const { data: findingsData, isLoading } = useQuery({ 
+    queryKey: ["vulnerabilities", selectedScanId, active], 
+    queryFn: () => getFindings(selectedScanId || undefined, active !== "All" ? active : undefined) 
   });
   
   const vulnerabilities = useMemo(() => (findingsData?.items ?? []) as Vulnerability[], [findingsData]);
+  const severityCounts = findingsData?.severityCounts;
   const [expanded, setExpanded] = useState("");
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => vulnerabilities.filter((item) => {
-    const severityMatch = active === "All" || item.severity === active;
+    const severityMatch = active === "All" || item.severity?.toLowerCase() === active.toLowerCase();
     const queryMatch = `${item.title} ${item.asset} ${item.cwe} ${item.owasp}`.toLowerCase().includes(query.toLowerCase());
     return severityMatch && queryMatch;
   }), [active, query, vulnerabilities]);
@@ -105,7 +115,25 @@ export function VulnerabilitiesPage() {
           <p className="muted-copy mt-4">Prioritized security issues mapped to OWASP, CWE, CVSS, evidence, and remediation.</p>
         </div>
         <div className="grid grid-cols-4 gap-3">
-          {filters.slice(1).map((filter) => <div key={filter} className="thin-panel min-w-[94px] px-4 py-3 text-center"><div className="text-[24px] font-bold">{vulnerabilities.filter((item) => item.severity === filter).length}</div><div className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{filter}</div></div>)}
+          {filters.slice(1).map((filter) => {
+            const count = severityCounts?.[filter.toLowerCase() as keyof typeof severityCounts] 
+              ?? vulnerabilities.filter((item) => item.severity?.toLowerCase() === filter.toLowerCase()).length;
+            const isSelected = active === filter;
+            return (
+              <button
+                key={filter}
+                type="button"
+                onClick={() => setActive(active === filter ? "All" : filter)}
+                className={cn(
+                  "thin-panel min-w-[94px] px-4 py-3 text-center transition cursor-pointer hover:border-cyan-500/50",
+                  isSelected && "border-cyan-500/80 bg-cyan-500/10 shadow-[0_0_15px_rgba(14,165,233,0.15)]"
+                )}
+              >
+                <div className="text-[24px] font-bold">{count}</div>
+                <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{filter}</div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -152,31 +180,47 @@ export function VulnerabilitiesPage() {
               </tr>
             </thead>
             <tbody>
-              {groupedFindings.map((group) => (
-                <React.Fragment key={group.id}>
-                  <tr className={cn("border-t border-border/70 align-top transition hover:bg-cyan-400/[0.045]", expanded === group.id && "bg-cyan-400/[0.025]")}>
-                    <td className="px-5 py-4">
-                      <div className="text-[15px] font-bold">
-                        {group.title}
-                        {group.count > 1 && (
-                          <span className="ml-3 inline-flex items-center justify-center rounded-[8px] bg-cyan-500/15 px-2 py-0.5 text-[12px] font-bold text-cyan-500 dark:bg-cyan-500/20 dark:text-cyan-400">
-                            {group.count} endpoints
-                          </span>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={8} className="px-5 py-12 text-center text-[14px] font-medium text-muted-foreground">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+                      Loading vulnerabilities...
+                    </div>
+                  </td>
+                </tr>
+              ) : groupedFindings.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-5 py-12 text-center text-[14px] font-medium text-muted-foreground">
+                    No vulnerabilities found matching the selected criteria.
+                  </td>
+                </tr>
+              ) : (
+                groupedFindings.map((group) => (
+                  <React.Fragment key={group.id}>
+                    <tr className={cn("border-t border-border/70 align-top transition hover:bg-cyan-400/[0.045]", expanded === group.id && "bg-cyan-400/[0.025]")}>
+                      <td className="px-5 py-4">
+                        <div className="text-[15px] font-bold">
+                          {group.title}
+                          {group.count > 1 && (
+                            <span className="ml-3 inline-flex items-center justify-center rounded-[8px] bg-cyan-500/15 px-2 py-0.5 text-[12px] font-bold text-cyan-500 dark:bg-cyan-500/20 dark:text-cyan-400">
+                              {group.count} endpoints
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1 font-mono text-[12px] font-bold text-muted-foreground">{group.id}</div>
+                      </td>
+                      <td className="px-5 py-4 font-mono text-[14px] font-bold">
+                        {group.count === 1 ? (
+                          <div className="max-w-[200px] truncate" title={group.asset}>{group.asset}</div>
+                        ) : (
+                          <div className="text-cyan-600 dark:text-cyan-400">Multiple Assets</div>
                         )}
-                      </div>
-                      <div className="mt-1 font-mono text-[12px] font-bold text-muted-foreground">{group.id}</div>
-                    </td>
-                    <td className="px-5 py-4 font-mono text-[14px] font-bold">
-                      {group.count === 1 ? (
-                        <div className="max-w-[200px] truncate" title={group.asset}>{group.asset}</div>
-                      ) : (
-                        <div className="text-cyan-600 dark:text-cyan-400">Multiple Assets</div>
-                      )}
-                    </td>
-                    <td className="px-5 py-4 text-[14px] font-bold text-muted-foreground">{group.owasp}</td>
-                    <td className="px-5 py-4 text-[14px] font-bold text-muted-foreground">{group.cwe}</td>
-                    <td className="px-5 py-4"><div className="flex min-w-[100px] items-center gap-3"><span className="font-mono text-[15px] font-bold">{group.cvss}</span><ProgressBar value={group.cvss * 10} tone={group.cvss >= 8 ? "red" : group.cvss >= 7 ? "amber" : "cyan"} className="h-2 flex-1" /></div></td>
-                    <td className="px-5 py-4"><Badge tone={severityTone[group.severity]}>{group.severity}</Badge></td>
+                      </td>
+                      <td className="px-5 py-4 text-[14px] font-bold text-muted-foreground">{group.owasp}</td>
+                      <td className="px-5 py-4 text-[14px] font-bold text-muted-foreground">{group.cwe}</td>
+                      <td className="px-5 py-4"><div className="flex min-w-[100px] items-center gap-3"><span className="font-mono text-[15px] font-bold">{group.cvss}</span><ProgressBar value={group.cvss * 10} tone={group.cvss >= 8 ? "red" : group.cvss >= 7 ? "amber" : "cyan"} className="h-2 flex-1" /></div></td>
+                      <td className="px-5 py-4"><Badge tone={severityTone[group.severity] || "low"}>{group.severity}</Badge></td>
                     <td className="px-5 py-4"><Badge tone={group.status === "Open" ? "running" : group.status === "In Review" ? "medium" : "neutral"}>{group.status}</Badge></td>
                     <td className="px-5 py-4 text-right">
                       <button 
@@ -226,7 +270,7 @@ export function VulnerabilitiesPage() {
                     </tr>
                   )}
                 </React.Fragment>
-              ))}
+              )))}
             </tbody>
           </table>
         </div>

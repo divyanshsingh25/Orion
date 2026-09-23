@@ -17,7 +17,7 @@ router = APIRouter(prefix="/findings")
 @router.get("")
 async def list_findings(
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
+    page_size: int = Query(default=100, ge=1, le=1000),
     search: str | None = Query(default=None),
     project_id: str | None = Query(default=None),
     scan_id: str | None = Query(default=None),

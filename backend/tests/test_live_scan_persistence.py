@@ -14,6 +14,8 @@ from sqlalchemy import select
 
 async def test_live_scan_lifecycle():
     print("[TEST] Starting Live Scan Persistence & Reconnection Test...")
+    from app.database.session import async_engine
+    await async_engine.dispose()
 
     async with AsyncSessionLocal() as db:
         # Fetch admin user

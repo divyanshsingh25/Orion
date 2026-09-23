@@ -15,7 +15,18 @@ class FindingService:
         self.db = db
 
     async def list_findings(self, user: User, params: PaginationParams, project_id: str | None = None, scan_id: str | None = None, severity: str | None = None) -> dict[str, Any]:
-        query = select(Finding).where(Finding.project_id.in_(select(Finding.project_id).join(Finding.project).where(Finding.project.has(user_id=user.id))))
+        user_project_subquery = select(Finding.project_id).join(Finding.project).where(Finding.project.has(user_id=user.id))
+        
+        # Calculate scope-wide severity counts (before severity filter is applied)
+        count_q = select(func.lower(Finding.severity), func.count()).where(Finding.project_id.in_(user_project_subquery))
+        if project_id:
+            count_q = count_q.where(Finding.project_id == project_id)
+        if scan_id:
+            count_q = count_q.where(Finding.scan_id == scan_id)
+        count_res = await self.db.execute(count_q.group_by(func.lower(Finding.severity)))
+        severity_counts = {sev: count for sev, count in count_res.all()}
+
+        query = select(Finding).where(Finding.project_id.in_(user_project_subquery))
         if project_id:
             query = query.where(Finding.project_id == project_id)
         if scan_id:
@@ -39,7 +50,19 @@ class FindingService:
         query = query.order_by(severity_rank.desc(), Finding.cvss_score.desc(), Finding.created_at.desc()).offset((params.page - 1) * params.page_size).limit(params.page_size)
         result = await self.db.execute(query)
         findings = [self._to_read(row) for row in result.scalars().all()]
-        return {"items": findings, "page": params.page, "page_size": params.page_size, "total": total}
+        return {
+            "items": findings,
+            "page": params.page,
+            "page_size": params.page_size,
+            "total": total,
+            "severity_counts": {
+                "critical": severity_counts.get("critical", 0),
+                "high": severity_counts.get("high", 0),
+                "medium": severity_counts.get("medium", 0),
+                "low": severity_counts.get("low", 0),
+                "info": severity_counts.get("info", 0),
+            }
+        }
 
     def _to_read(self, finding: Finding) -> FindingRead:
         return FindingRead.model_validate(finding)

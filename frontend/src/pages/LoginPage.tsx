@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { motion } from "framer-motion";
 import { ShieldCheck, Scan, Activity, BarChart3, ArrowRight, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,10 +8,24 @@ import { login, register } from "@/services/api";
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialMode = searchParams.get("mode");
+  const initialSignUp = initialMode === "signup" || searchParams.get("signup") === "true";
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(initialSignUp);
+
+  useEffect(() => {
+    const mode = searchParams.get("mode");
+    const isSignupParam = mode === "signup" || searchParams.get("signup") === "true";
+    if (isSignupParam) {
+      setIsSignUp(true);
+    } else if (mode === "login") {
+      setIsSignUp(false);
+    }
+  }, [searchParams]);
 
   // Form states (no hardcoded passwords or prefilled credentials)
   const [identifier, setIdentifier] = useState("");
@@ -87,7 +102,7 @@ export function LoginPage() {
         }
 
         await login(cleanIdentifier, password);
-        navigate("/");
+        navigate("/dashboard");
       }
     } catch (submissionError: any) {
       const code = submissionError?.response?.data?.code;
@@ -121,21 +136,78 @@ export function LoginPage() {
   };
 
   return (
-    <main className="relative min-h-screen bg-[#020817] text-white flex items-center justify-center overflow-hidden login-bg-grid">
-      {/* Scanning Animation Line */}
-      <div className="scan-line-animation" />
+    <main className="relative min-h-screen bg-[#07111F] text-[#F8FAFC] flex items-center justify-center overflow-hidden selection:bg-[#06B6D4] selection:text-black">
+      {/* Full-Viewport Cybersecurity Background with Animated Scanning Line Effect */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        {/* Soft Radial Gradients */}
+        <div className="absolute top-[-8%] left-[20%] w-[60vw] h-[55vw] rounded-full bg-[radial-gradient(circle,rgba(37,99,235,0.14),transparent_65%)] blur-[100px]" />
+        <div className="absolute top-[25%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-[radial-gradient(circle,rgba(6,182,212,0.11),transparent_60%)] blur-[110px]" />
+        <div className="absolute bottom-[5%] left-[-5%] w-[45vw] h-[45vw] rounded-full bg-[radial-gradient(circle,rgba(37,99,235,0.08),transparent_65%)] blur-[95px]" />
 
-      <div className="container max-w-6xl mx-auto flex flex-col lg:flex-row items-center justify-between p-8 gap-12 z-10">
+        {/* Subtle Technical Grid (48px square) */}
+        <div
+          className="absolute inset-0 opacity-[0.038]"
+          style={{
+            backgroundImage: `linear-gradient(to right, rgba(255,255,255,0.12) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.12) 1px, transparent 1px)`,
+            backgroundSize: "48px 48px",
+          }}
+        />
+
+        {/* Connected Node / Network Pattern Overlay */}
+        <svg
+          className="absolute inset-0 w-full h-full opacity-[0.16] stroke-slate-500"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <g strokeWidth="0.8" strokeDasharray="3 3">
+            <line x1="12%" y1="18%" x2="28%" y2="28%" />
+            <line x1="28%" y1="28%" x2="45%" y2="20%" />
+            <line x1="45%" y1="20%" x2="62%" y2="32%" />
+            <line x1="62%" y1="32%" x2="80%" y2="22%" />
+            <line x1="80%" y1="22%" x2="92%" y2="35%" />
+            <line x1="28%" y1="28%" x2="35%" y2="48%" />
+            <line x1="62%" y1="32%" x2="70%" y2="52%" />
+          </g>
+          <circle cx="12%" cy="18%" r="3" fill="#2563EB" opacity="0.6" />
+          <circle cx="28%" cy="28%" r="3.5" fill="#06B6D4" opacity="0.8" />
+          <circle cx="45%" cy="20%" r="2.5" fill="#2563EB" opacity="0.5" />
+          <circle cx="62%" cy="32%" r="4" fill="#06B6D4" opacity="0.8" />
+          <circle cx="80%" cy="22%" r="3" fill="#2563EB" opacity="0.6" />
+          <circle cx="92%" cy="35%" r="3" fill="#06B6D4" opacity="0.7" />
+          <circle cx="35%" cy="48%" r="2.5" fill="#2563EB" opacity="0.5" />
+          <circle cx="70%" cy="52%" r="3" fill="#06B6D4" opacity="0.6" />
+        </svg>
+
+        {/* Subtle Animated Scanning Beam traversing the viewport */}
+        <motion.div
+          className="absolute left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-cyan-400/25 to-transparent pointer-events-none"
+          initial={{ y: "0vh" }}
+          animate={{ y: "100vh" }}
+          transition={{
+            duration: 12,
+            repeat: Infinity,
+            ease: "linear",
+          }}
+        />
+      </div>
+
+      <div className="container max-w-6xl mx-auto flex flex-col lg:flex-row items-center justify-between p-8 gap-12 z-10 relative">
         
         {/* Left Side Content */}
         <div className="flex-1 max-w-xl">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-cyan-400 transition-colors mb-6 py-1.5 px-3 rounded-lg border border-white/10 bg-white/[0.03] hover:bg-white/[0.08]"
+          >
+            ← Back to Home
+          </Link>
           <div className="flex items-center gap-3 mb-10">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-400">
-              <ShieldCheck className="h-7 w-7" />
+            <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#2563EB]/25 to-[#06B6D4]/25 border border-cyan-500/30 shadow-[0_0_18px_rgba(6,182,212,0.22)] overflow-hidden">
+              <img src="/orion-logo.png" alt="ORION Logo" className="h-full w-full object-cover scale-110" />
+              <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border border-[#07111F] bg-emerald-400" />
             </div>
             <div>
-              <h1 className="text-2xl font-extrabold tracking-wider">ORION</h1>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-400">AI Security Desk</p>
+              <h1 className="text-2xl font-black tracking-tight text-white">ORION</h1>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-[#94A3B8]">Security Intelligence</p>
             </div>
           </div>
 

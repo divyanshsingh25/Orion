@@ -23,24 +23,54 @@ export function Topbar() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && query.toLowerCase().includes('report')) {
-                navigate('/reports');
+            if (e.key === 'Enter' && query.trim()) {
+                navigate(`/reports?search=${encodeURIComponent(query.trim())}`);
                 setQuery('');
             }
           }}
           className="h-full w-full rounded-[14px] border border-white/70 bg-white/80 pl-[50px] pr-24 text-[15px] font-semibold text-foreground shadow-[0_12px_28px_rgba(15,23,42,0.08)] outline-none backdrop-blur placeholder:text-muted-foreground focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 dark:border-white/10 dark:bg-white/[0.055]"
           placeholder="Search assets, CVEs, endpoints, reports..."
         />
-        {query && (
-          <div className="absolute top-[52px] z-50 w-full rounded-[14px] border border-border bg-card p-2 shadow-xl">
+        {query.trim() && (
+          <div className="absolute top-[52px] z-50 w-full rounded-[14px] border border-border bg-card p-1.5 shadow-xl">
              <button 
-                className="w-full text-left p-2 hover:bg-muted rounded-md text-[14px] font-medium"
+                className="w-full text-left p-2.5 hover:bg-muted/80 rounded-lg text-[13px] font-medium flex items-center justify-between group transition-colors"
                 onClick={() => {
-                    navigate('/reports');
+                    navigate(`/reports?search=${encodeURIComponent(query.trim())}`);
                     setQuery('');
                 }}
              >
-                Go to Reports
+                <span className="flex items-center gap-2">
+                  <Search className="h-4 w-4 text-cyan-500" />
+                  <span>Search reports for <strong className="text-foreground font-semibold">"{query.trim()}"</strong></span>
+                </span>
+                <span className="text-[11px] font-mono text-muted-foreground group-hover:text-foreground">Reports</span>
+             </button>
+             <button 
+                className="w-full text-left p-2.5 hover:bg-muted/80 rounded-lg text-[13px] font-medium flex items-center justify-between group transition-colors"
+                onClick={() => {
+                    navigate(`/vulnerabilities?search=${encodeURIComponent(query.trim())}`);
+                    setQuery('');
+                }}
+             >
+                <span className="flex items-center gap-2">
+                  <Search className="h-4 w-4 text-rose-500" />
+                  <span>Search vulnerabilities for <strong className="text-foreground font-semibold">"{query.trim()}"</strong></span>
+                </span>
+                <span className="text-[11px] font-mono text-muted-foreground group-hover:text-foreground">Findings</span>
+             </button>
+             <button 
+                className="w-full text-left p-2.5 hover:bg-muted/80 rounded-lg text-[13px] font-medium flex items-center justify-between group transition-colors"
+                onClick={() => {
+                    navigate(`/scan-history?search=${encodeURIComponent(query.trim())}`);
+                    setQuery('');
+                }}
+             >
+                <span className="flex items-center gap-2">
+                  <Search className="h-4 w-4 text-amber-500" />
+                  <span>Search scan history for <strong className="text-foreground font-semibold">"{query.trim()}"</strong></span>
+                </span>
+                <span className="text-[11px] font-mono text-muted-foreground group-hover:text-foreground">Scans</span>
              </button>
           </div>
         )}

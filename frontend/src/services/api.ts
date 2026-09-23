@@ -408,9 +408,31 @@ export async function downloadReport(reportId: string, filename?: string) {
   window.URL.revokeObjectURL(url);
 }
 
-export async function getFindings(scanId?: string) {
-  const url = scanId ? `/findings?scan_id=${scanId}&page_size=100` : "/findings?page_size=100";
-  const { data } = await api.get(url);
+export interface FindingsResponse {
+  items: Vulnerability[];
+  total: number;
+  severityCounts: {
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+    info: number;
+  };
+}
+
+export async function getFindings(
+  scanId?: string,
+  severity?: string,
+  page: number = 1,
+  pageSize: number = 1000
+): Promise<FindingsResponse> {
+  const params = new URLSearchParams();
+  if (scanId) params.append("scan_id", scanId);
+  if (severity && severity !== "All") params.append("severity", severity.toLowerCase());
+  params.append("page", String(page));
+  params.append("page_size", String(pageSize));
+
+  const { data } = await api.get(`/findings?${params.toString()}`);
   
   const rawItems = data.items || data || [];
   const items = rawItems.map((item: any) => ({
@@ -421,7 +443,17 @@ export async function getFindings(scanId?: string) {
     cvss: parseFloat(item.cvss_score || "0"),
   }));
 
-  return { items } as { items: Vulnerability[] };
+  return {
+    items,
+    total: data.total ?? items.length,
+    severityCounts: data.severity_counts ?? {
+      critical: 0,
+      high: 0,
+      medium: 0,
+      low: 0,
+      info: 0,
+    },
+  };
 }
 
 export async function logout() {

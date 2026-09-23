@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { AppLayout } from "@/layouts/AppLayout";
+import { LandingPage } from "@/pages/LandingPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { VerifyEmailPage } from "@/pages/VerifyEmailPage";
 import { DashboardPage } from "@/pages/DashboardPage";
@@ -26,25 +27,30 @@ function ThemeBridge() {
 
 function AppRoutes() {
   const location = useLocation();
-  const isPublic = location.pathname === "/login" || location.pathname === "/verify-email";
   const accessToken = window.localStorage.getItem("orion.access_token");
 
-  if (!isPublic && !accessToken) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (location.pathname === "/verify-email") {
-    return <VerifyEmailPage />;
+  // Public Landing Page (first screen for anyone visiting Orion root)
+  if (location.pathname === "/" || location.pathname === "/landing" || location.pathname === "/index.html") {
+    return <LandingPage />;
   }
 
   if (location.pathname === "/login") {
     return <LoginPage />;
   }
 
+  if (location.pathname === "/verify-email") {
+    return <VerifyEmailPage />;
+  }
+
+  // Protected authenticated routes: if not logged in, direct visitors to the landing page first
+  if (!accessToken) {
+    return <Navigate to="/" replace />;
+  }
+
   return (
     <AppLayout>
       <Routes>
-        <Route path="/" element={<DashboardPage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/new-scan" element={<NewScanPage />} />
         <Route path="/live-scan" element={<LiveScanPage />} />
         <Route path="/scan-history" element={<ScanHistoryPage />} />

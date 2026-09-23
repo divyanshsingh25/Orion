@@ -103,6 +103,18 @@ export function LiveScanPage() {
   const [isCancelling, setIsCancelling] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const logsContainerRef = useRef<HTMLDivElement>(null);
+  const cardsContainerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom of logs
+  useEffect(() => {
+    if (logsContainerRef.current) {
+      logsContainerRef.current.scrollTo({
+        top: logsContainerRef.current.scrollHeight,
+        behavior: "smooth"
+      });
+    }
+  }, [eventsState, scanQuery.data?.live_events, dashboardQuery.data?.terminalEvents]);
 
   // Clear local component state when switching to a different scan
   useEffect(() => {
@@ -168,12 +180,12 @@ export function LiveScanPage() {
       if (data.live_events && data.live_events.length > 0) {
         setEventsState((current) => {
           if (current.length === 0) {
-            return data.live_events!;
+            return data.live_events!.slice(-150);
           }
           const seen = new Set(current.map((e) => `${e.time}|${e.message}`));
           const missing = data.live_events!.filter((e) => !seen.has(`${e.time}|${e.message}`));
           if (missing.length > 0) {
-            return [...current, ...missing].slice(0, 150);
+            return [...current, ...missing].slice(-150);
           }
           return current;
         });
@@ -292,7 +304,7 @@ export function LiveScanPage() {
                 level: (payload.log.level as TerminalEvent["level"]) || "INFO",
                 message: payload.log.message,
               };
-              setEventsState((current) => [logEntry, ...current].slice(0, 100));
+              setEventsState((current) => [...current, logEntry].slice(-150));
             }
 
             if (payload.event === "scan_completed") {
@@ -430,6 +442,17 @@ export function LiveScanPage() {
     }
     return completed;
   }, [modules, effStatus, isScanning, effProgress]);
+
+  // Auto-scroll to bottom of scanner cards so the active card is always visible
+  useEffect(() => {
+    if (cardsContainerRef.current) {
+      cardsContainerRef.current.scrollTo({
+        top: cardsContainerRef.current.scrollHeight,
+        behavior: "smooth"
+      });
+    }
+  }, [visibleModules.length]);
+
   const statusLabel =
     effStatus === "completed"
       ? "Complete"
@@ -559,8 +582,9 @@ export function LiveScanPage() {
             <div className="mt-3 flex justify-between text-[12px] font-bold text-muted-foreground"><span>Discovery</span><span>Authorization</span><span>Runtime</span><span>Report</span></div>
           </div>
 
-          <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {visibleModules.map((module, index) => {
+          <div className="mt-7 max-h-[360px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent" ref={cardsContainerRef}>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 pb-2">
+              {visibleModules.map((module, index) => {
               const originalIndex = modules.findIndex((m) => m.name.toLowerCase() === module.name.toLowerCase());
               const Icon = moduleIcons[(originalIndex >= 0 ? originalIndex : index) % moduleIcons.length] ?? ShieldAlert;
               return (
@@ -584,6 +608,7 @@ export function LiveScanPage() {
                 </motion.div>
               );
             })}
+            </div>
           </div>
         </section>
 
@@ -639,7 +664,7 @@ export function LiveScanPage() {
           <div className="text-[13px] font-mono text-muted-foreground">{events.length} events</div>
         </div>
         <div className="mt-5 rounded-[18px] border border-slate-800 bg-[#070d18] p-4 font-mono text-[13px] text-slate-200">
-          <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-2">
+          <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-2" ref={logsContainerRef}>
             {events.map((event, index) => (
               <div key={`${event.time}-${index}`} className="flex items-start gap-3">
                 <span className="text-slate-500">{event.time}</span>
