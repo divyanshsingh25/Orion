@@ -51,7 +51,7 @@ class AuthService:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already taken")
         username = uname_clean
 
-        verification_token = secrets.token_urlsafe(32)
+        verification_token = f"{secrets.randbelow(900000) + 100000}"
         user = User(
             email=email_clean,
             username=username,
@@ -74,7 +74,7 @@ class AuthService:
             await self.db.rollback()
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email or username already exists")
 
-        resp = {"user": self._to_user_read(user), "message": "Account created. Verify your email to complete setup."}
+        resp = {"user": self._to_user_read(user), "message": "Account created. A 6-digit verification OTP has been sent to your email."}
         if not self.settings.smtp_host or not self.settings.smtp_from_email:
             resp["dev_token"] = verification_token
         return resp
@@ -183,16 +183,16 @@ class AuthService:
                 "already_verified": True,
             }
 
-        verification_token = secrets.token_urlsafe(32)
+        verification_token = f"{secrets.randbelow(900000) + 100000}"
         user.verification_token_hash = _hash_token(verification_token)
         user.verification_token_expires_at = datetime.now(UTC) + timedelta(days=1)
         await self.notifications.send_verification_email(user, verification_token)
         await self.db.commit()
 
-        resp = {"message": "Verification email sent successfully."}
+        resp = {"message": "Verification OTP sent successfully."}
         if not self.settings.smtp_host or not self.settings.smtp_from_email:
             resp["dev_token"] = verification_token
-            resp["message"] = "Verification code generated! Click 'Verify Account' below to activate."
+            resp["message"] = "Verification OTP generated! Enter code below to activate."
         return resp
 
     async def forgot_password(self, email: str) -> dict:

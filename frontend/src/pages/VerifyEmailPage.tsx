@@ -134,9 +134,13 @@ export function VerifyEmailPage() {
               <div className="w-14 h-14 bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 rounded-full flex items-center justify-center mx-auto mb-3">
                 <MailCheck className="h-7 w-7" />
               </div>
-              <h2 className="text-xl font-bold text-white">Verify Your Email Address</h2>
+              <h2 className="text-xl font-bold text-white">Enter Verification OTP</h2>
               <p className="text-xs text-slate-400 mt-1">
-                For security, your account must be verified before accessing any ORION capabilities.
+                {resendEmail ? (
+                  <>We sent a 6-digit verification code to <span className="text-cyan-400 font-semibold">{resendEmail}</span></>
+                ) : (
+                  "Please enter the 6-digit OTP sent to your registered email."
+                )}
               </p>
             </div>
 
@@ -162,17 +166,19 @@ export function VerifyEmailPage() {
               className="space-y-4"
             >
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">
-                  Verification Token
+                <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1.5 text-center">
+                  6-Digit One-Time Passcode (OTP)
                 </label>
                 <div className="relative">
                   <KeyRound className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-500" />
                   <Input
                     type="text"
-                    placeholder="Paste your verification token"
+                    inputMode="numeric"
+                    maxLength={10}
+                    placeholder="Enter 6-digit OTP"
                     value={token}
                     onChange={(e) => setToken(e.target.value)}
-                    className="bg-slate-950/60 border-slate-800 text-white pl-10 focus:border-cyan-500"
+                    className="bg-slate-950/60 border-slate-800 text-white pl-10 text-center font-mono tracking-[0.3em] text-lg font-bold focus:border-cyan-500"
                   />
                 </div>
               </div>
@@ -184,17 +190,17 @@ export function VerifyEmailPage() {
               >
                 {isVerifying ? (
                   <>
-                    <RefreshCw className="h-4 w-4 animate-spin mr-2" /> Verifying...
+                    <RefreshCw className="h-4 w-4 animate-spin mr-2" /> Verifying OTP...
                   </>
                 ) : (
-                  "Verify Account"
+                  "Verify OTP"
                 )}
               </Button>
             </form>
 
             {/* Resend section */}
             <div className="pt-4 border-t border-slate-800/80">
-              <p className="text-xs text-slate-400 text-center mb-3">Didn't receive an email or token expired?</p>
+              <p className="text-xs text-slate-400 text-center mb-3">Didn't receive the OTP email or code expired?</p>
               <form onSubmit={handleResend} className="flex gap-2">
                 <Input
                   type="email"
@@ -210,7 +216,7 @@ export function VerifyEmailPage() {
                   variant="outline"
                   className="border-slate-700 hover:bg-slate-800 text-xs shrink-0"
                 >
-                  {isResending ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Resend"}
+                  {isResending ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Resend OTP"}
                 </Button>
               </form>
             </div>

@@ -303,15 +303,30 @@ class ScanService:
 
             await self.db.commit()
 
+            report_id = None
             try:
                 report = await self.report_service.generate_report(user, scan.id, "pdf")
                 if report:
+                    report_id = report.id
                     bucket["report_id"] = report.id
                     summary["live_telemetry"]["report_id"] = report.id
                     scan.summary_json = summary
                     await self.db.commit()
             except Exception:
                 logger.exception("Report generation failed for scan %s", scan.id)
+
+            # --- Post-scan automated email delivery (isolated async background task) ---
+            if getattr(self.settings, "email_reports_enabled", False):
+                try:
+                    if getattr(self.settings, "use_celery", False):
+                        from app.workers.tasks import send_scan_report_email_task
+                        send_scan_report_email_task.delay(scan.id, user.id, report_id)
+                    else:
+                        from app.services.email_report_service import EmailReportService
+                        asyncio.create_task(EmailReportService.send_scan_report_email_bg(scan.id, user.id, report_id))
+                except Exception as email_err:
+                    logger.warning("Failed to queue scan report email task for scan %s: %s", scan.id, email_err)
+
 
             await connection_manager.broadcast(scan.id, {
                 "event": "scan_completed",

@@ -74,11 +74,19 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 30
     password_min_length: int = 12
 
+    email_reports_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("EMAIL_REPORTS_ENABLED", "ORION_EMAIL_REPORTS_ENABLED"),
+    )
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_username: str | None = None
     smtp_password: str | None = None
     smtp_from_email: str | None = None
+    smtp_from_name: str = Field(
+        default="ORION Security",
+        validation_alias=AliasChoices("SMTP_FROM_NAME", "ORION_SMTP_FROM_NAME"),
+    )
 
     storage_dir: str = "storage"
     report_dir: str = "storage/reports"
