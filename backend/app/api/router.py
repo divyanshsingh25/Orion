@@ -9,6 +9,7 @@ from app.api.v1.reports import router as reports_router
 from app.api.v1.scans import router as scans_router
 from app.api.v1.targets import router as targets_router
 from app.api.v1.chat import router as chat_router
+from app.api.v1.notifications import router as notifications_router
 
 
 api_router = APIRouter()
@@ -20,4 +21,5 @@ api_router.include_router(targets_router, tags=["targets"])
 api_router.include_router(scans_router, tags=["scans"])
 api_router.include_router(findings_router, tags=["findings"])
 api_router.include_router(reports_router, tags=["reports"])
+api_router.include_router(notifications_router, tags=["notifications"])
 api_router.include_router(chat_router, prefix="/chat", tags=["chat"])

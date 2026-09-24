@@ -468,3 +468,44 @@ export async function sendChatMessage(messages: AssistantMessage[]) {
   const { data } = await api.post("/chat", { messages });
   return data as AssistantMessage;
 }
+
+export interface AppNotification {
+  id: string;
+  kind: string;
+  title: string;
+  message: string;
+  payload_json?: Record<string, any> | null;
+  read_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NotificationsResponse {
+  items: AppNotification[];
+  unread_count: number;
+}
+
+export async function getNotifications(limit: number = 30): Promise<NotificationsResponse> {
+  try {
+    const { data } = await api.get<NotificationsResponse>(`/notifications?limit=${limit}`);
+    return data;
+  } catch (error) {
+    return { items: [], unread_count: 0 };
+  }
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  try {
+    await api.post("/notifications/read-all");
+  } catch (error) {
+    console.error("Failed to mark notifications as read", error);
+  }
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  try {
+    await api.post(`/notifications/${id}/read`);
+  } catch (error) {
+    console.error("Failed to mark notification as read", error);
+  }
+}

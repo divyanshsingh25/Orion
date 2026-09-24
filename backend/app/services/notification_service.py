@@ -1,8 +1,10 @@
 import logging
 import smtplib
 from email.message import EmailMessage
+from datetime import UTC, datetime
 from typing import Any
 
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -21,6 +23,56 @@ class NotificationService:
         self.db.add(notification)
         await self.db.flush()
         return notification
+
+    async def list_notifications(self, user: User, limit: int = 50) -> list[Notification]:
+        stmt = (
+            select(Notification)
+            .where(
+                Notification.user_id == user.id,
+                Notification.kind.in_(["scan_report_email", "scan_report_email_failed", "report_generated"]),
+            )
+            .order_by(Notification.created_at.desc())
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_unread_count(self, user: User) -> int:
+        stmt = (
+            select(func.count(Notification.id))
+            .where(
+                Notification.user_id == user.id,
+                Notification.read_at.is_(None),
+                Notification.kind.in_(["scan_report_email", "scan_report_email_failed", "report_generated"]),
+            )
+        )
+        result = await self.db.execute(stmt)
+        return int(result.scalar_one() or 0)
+
+    async def mark_as_read(self, user: User, notification_id: str) -> Notification | None:
+        stmt = select(Notification).where(Notification.user_id == user.id, Notification.id == notification_id)
+        result = await self.db.execute(stmt)
+        notification = result.scalar_one_or_none()
+        if notification and not notification.read_at:
+            notification.read_at = datetime.now(UTC)
+            await self.db.commit()
+            await self.db.refresh(notification)
+        return notification
+
+    async def mark_all_as_read(self, user: User) -> int:
+        now = datetime.now(UTC)
+        stmt = (
+            update(Notification)
+            .where(
+                Notification.user_id == user.id,
+                Notification.read_at.is_(None),
+                Notification.kind.in_(["scan_report_email", "scan_report_email_failed", "report_generated"]),
+            )
+            .values(read_at=now)
+        )
+        result = await self.db.execute(stmt)
+        await self.db.commit()
+        return int(result.rowcount or 0)
 
     async def send_verification_email(self, user: User, token: str) -> None:
         subject = f"Your ORION Verification OTP: {token}"
@@ -65,7 +117,6 @@ class NotificationService:
         </div>
         """
         logger.info("Email verification OTP generated for user %s (%s): %s", user.username, user.email, token)
-        await self.create_notification(user, "email_verification", subject, text_body, {"token": token})
         await self._maybe_send_email(user.email, subject, text_body, html_body)
 
     async def send_password_reset_email(self, user: User, token: str) -> None:
@@ -74,7 +125,6 @@ class NotificationService:
         reset_link = f"{base_url}/reset-password?token={token}"
         text_body = f"Use this password reset token: {token}\n\nOr click: {reset_link}"
         logger.info("Password reset token generated for user %s (%s): %s", user.username, user.email, token)
-        await self.create_notification(user, "password_reset", subject, text_body, {"token": token})
         await self._maybe_send_email(user.email, subject, text_body)
 
     async def _maybe_send_email(self, to_email: str, subject: str, body: str, html_body: str | None = None) -> None:

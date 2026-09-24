@@ -236,11 +236,11 @@ class EmailReportService:
                 notif = Notification(
                     user_id=user.id,
                     kind="scan_report_email" if smtp_success else "scan_report_email_failed",
-                    title="Scan Report Delivered" if smtp_success else "Scan Report Email Failed",
+                    title="Report sent to your email" if smtp_success else "Report Email Delivery Failed",
                     message=(
-                        f"Security report for {target_url} was successfully emailed to {user.email}."
+                        f"Security report for {target_url} was successfully generated and sent to your email ({user.email})."
                         if smtp_success
-                        else f"Unable to email report for {target_url} to {user.email}."
+                        else f"Security report was generated for {target_url}, but emailing to {user.email} failed."
                     ),
                     payload_json={
                         "scan_id": scan.id,

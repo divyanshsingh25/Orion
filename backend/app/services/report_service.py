@@ -93,6 +93,14 @@ class ReportService:
         self.db.add(report)
         await self.db.commit()
         await self.db.refresh(report)
+
+        try:
+            from app.services.email_report_service import EmailReportService
+            import asyncio
+            asyncio.create_task(EmailReportService.send_scan_report_email_bg(scan.id, user.id, report.id))
+        except Exception as bg_err:
+            logger.warning("Could not dispatch background report delivery email: %s", bg_err)
+
         return ReportRead.model_validate(report)
 
     async def _get_scan(self, user: User, scan_id: str) -> Scan:
