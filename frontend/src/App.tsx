@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import { AppLayout } from "@/layouts/AppLayout";
 import { LandingPage } from "@/pages/LandingPage";
 import { LoginPage } from "@/pages/LoginPage";
@@ -70,6 +71,7 @@ export default function App() {
     <>
       <ThemeBridge />
       <AppRoutes />
+      <Analytics />
     </>
   );
 }
