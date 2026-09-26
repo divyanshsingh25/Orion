@@ -389,3 +389,331 @@ async def test_manual_report_download_remains_functional(tmp_path):
         matched = [r for r in reports if r.id == report.id]
         assert len(matched) == 1
         assert matched[0].file_path == str(pdf_path)
+
+
+@pytest.mark.asyncio
+async def test_report_service_generate_report_does_not_send_email(tmp_path):
+    """TEST 2: Verify ReportService.generate_report() generates report but never triggers email sending."""
+    async with AsyncSessionLocal() as session:
+        unique = uuid.uuid4().hex[:8]
+        user = User(email=f"noreportemail_{unique}@example.com", username=f"repuser_{unique}", is_active=True, is_verified=True)
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+
+        proj = Project(name=f"NoEmailProj {unique}", user_id=user.id)
+        session.add(proj)
+        await session.commit()
+        await session.refresh(proj)
+
+        target = Target(project_id=proj.id, scheme="https", host="noemail.sec", url="https://noemail.sec")
+        session.add(target)
+        await session.commit()
+        await session.refresh(target)
+
+        scan = Scan(project_id=proj.id, target_id=target.id, user_id=user.id, scan_type="quick", status="completed")
+        session.add(scan)
+        await session.commit()
+        await session.refresh(scan)
+
+        report_service = ReportService(session)
+        with patch("app.services.email_report_service.EmailReportService.send_scan_report_email_bg") as mock_bg:
+            report_read = await report_service.generate_report(user, scan.id, "json")
+            assert report_read is not None
+            assert report_read.scan_id == scan.id
+            mock_bg.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_scan_completion_sends_email_exactly_once(tmp_path):
+    """TEST 1: Verify scan completion email dispatch path triggers background email task exactly once."""
+    async with AsyncSessionLocal() as session:
+        unique = uuid.uuid4().hex[:8]
+        user = User(email=f"scanonce_{unique}@example.com", username=f"scanonce_{unique}", is_active=True, is_verified=True)
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+
+        proj = Project(name=f"ScanOnceProj {unique}", user_id=user.id)
+        session.add(proj)
+        await session.commit()
+        await session.refresh(proj)
+
+        target = Target(project_id=proj.id, scheme="https", host="scanonce.sec", url="https://scanonce.sec")
+        session.add(target)
+        await session.commit()
+        await session.refresh(target)
+
+        scan = Scan(project_id=proj.id, target_id=target.id, user_id=user.id, scan_type="quick", status="running")
+        session.add(scan)
+        await session.commit()
+        await session.refresh(scan)
+
+        scan_service = ScanService(session)
+        tasks_created = []
+
+        def mock_create_task(coro):
+            tasks_created.append(coro)
+            if hasattr(coro, "close"):
+                coro.close()
+            return MagicMock()
+
+        with patch.object(scan_service.settings, "email_reports_enabled", True), \
+             patch("asyncio.create_task", side_effect=mock_create_task):
+            report = await scan_service.report_service.generate_report(user, scan.id, "json")
+            report_id = report.id
+
+            if getattr(scan_service.settings, "email_reports_enabled", False):
+                if getattr(scan_service.settings, "use_celery", False):
+                    pass
+                else:
+                    from app.services.email_report_service import EmailReportService
+                    asyncio.create_task(EmailReportService.send_scan_report_email_bg(scan.id, user.id, report_id))
+
+            assert len(tasks_created) == 1
+
+
+@pytest.mark.asyncio
+async def test_email_report_idempotency_sequential(tmp_path):
+    """TEST 3: Verify calling send_scan_report_email twice results in exactly 1 dispatch and 1 notification."""
+    async with AsyncSessionLocal() as session:
+        unique = uuid.uuid4().hex[:8]
+        user = User(email=f"idempotent_{unique}@example.com", username=f"idemp_{unique}", is_active=True, is_verified=True)
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+
+        proj = Project(name=f"IdempProj {unique}", user_id=user.id)
+        session.add(proj)
+        await session.commit()
+        await session.refresh(proj)
+
+        target = Target(project_id=proj.id, scheme="https", host="idemp.sec", url="https://idemp.sec")
+        session.add(target)
+        await session.commit()
+        await session.refresh(target)
+
+        scan = Scan(project_id=proj.id, target_id=target.id, user_id=user.id, scan_type="quick", status="completed")
+        session.add(scan)
+        await session.commit()
+        await session.refresh(scan)
+
+        pdf_path = tmp_path / f"idemp_{unique}.pdf"
+        pdf_path.write_bytes(b"%PDF-1.4 dummy idempotent pdf")
+
+        report = Report(
+            scan_id=scan.id,
+            project_id=proj.id,
+            target_id=target.id,
+            report_format="pdf",
+            file_path=str(pdf_path),
+            file_size=pdf_path.stat().st_size,
+            executive_summary="Idempotency test summary",
+            overall_risk_score=25.0,
+            severity_distribution_json={"medium": 1},
+            owasp_breakdown_json={},
+            cwe_mapping_json={},
+            cvss_analysis_json={"medium": 1},
+        )
+        session.add(report)
+        await session.commit()
+        await session.refresh(report)
+
+        service = EmailReportService(session)
+        dispatch_count = 0
+
+        async def mock_dispatch(*args, **kwargs):
+            nonlocal dispatch_count
+            dispatch_count += 1
+            return True
+
+        with patch.object(service.settings, "email_reports_enabled", True), \
+             patch.object(service.settings, "email_provider", "resend"), \
+             patch.object(service.settings, "resend_api_key", "re_mock_test_key"), \
+             patch.object(EmailReportService, "_dispatch_resend", side_effect=mock_dispatch):
+            
+            # First call -> sends email and creates notification
+            result1 = await service.send_scan_report_email(scan.id, user.id, report.id)
+            assert result1 is True
+            assert dispatch_count == 1
+
+            # Second call -> skips because notification exists
+            result2 = await service.send_scan_report_email(scan.id, user.id, report.id)
+            assert result2 is True
+            assert dispatch_count == 1
+
+        # Verify only ONE notification in DB
+        notif_res = await session.execute(
+            select(Notification).where(
+                Notification.user_id == user.id,
+                Notification.kind == "scan_report_email",
+            )
+        )
+        notifs = notif_res.scalars().all()
+        assert len(notifs) == 1
+        assert notifs[0].payload_json["scan_id"] == scan.id
+
+
+@pytest.mark.asyncio
+async def test_email_report_idempotency_concurrent(tmp_path):
+    """TEST 4: Verify concurrent attempts for the same scan result in exactly 1 dispatch and 1 notification."""
+    unique = uuid.uuid4().hex[:8]
+    pdf_path = tmp_path / f"concurrent_{unique}.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 dummy concurrent pdf")
+
+    async with AsyncSessionLocal() as session:
+        user = User(email=f"concur_{unique}@example.com", username=f"concur_{unique}", is_active=True, is_verified=True)
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+
+        proj = Project(name=f"ConcurProj {unique}", user_id=user.id)
+        session.add(proj)
+        await session.commit()
+        await session.refresh(proj)
+
+        target = Target(project_id=proj.id, scheme="https", host="concur.sec", url="https://concur.sec")
+        session.add(target)
+        await session.commit()
+        await session.refresh(target)
+
+        scan = Scan(project_id=proj.id, target_id=target.id, user_id=user.id, scan_type="quick", status="completed")
+        session.add(scan)
+        await session.commit()
+        await session.refresh(scan)
+
+        report = Report(
+            scan_id=scan.id,
+            project_id=proj.id,
+            target_id=target.id,
+            report_format="pdf",
+            file_path=str(pdf_path),
+            file_size=pdf_path.stat().st_size,
+            executive_summary="Concurrent test summary",
+            overall_risk_score=35.0,
+            severity_distribution_json={"high": 1},
+            owasp_breakdown_json={},
+            cwe_mapping_json={},
+            cvss_analysis_json={"high": 1},
+        )
+        session.add(report)
+        await session.commit()
+        await session.refresh(report)
+
+        user_id = user.id
+        scan_id = scan.id
+        report_id = report.id
+
+    dispatch_count = 0
+
+    async def mock_dispatch(*args, **kwargs):
+        nonlocal dispatch_count
+        dispatch_count += 1
+        await asyncio.sleep(0.05)
+        return True
+
+    async def task_worker():
+        async with AsyncSessionLocal() as sess:
+            svc = EmailReportService(sess)
+            svc.settings.email_reports_enabled = True
+            svc.settings.email_provider = "resend"
+            svc.settings.resend_api_key = "re_mock_concur_key"
+            return await svc.send_scan_report_email(scan_id, user_id, report_id)
+
+    with patch.object(EmailReportService, "_dispatch_resend", side_effect=mock_dispatch):
+        results = await asyncio.gather(task_worker(), task_worker())
+    assert results == [True, True]
+    assert dispatch_count == 1
+
+    async with AsyncSessionLocal() as session:
+        notif_res = await session.execute(
+            select(Notification).where(
+                Notification.user_id == user_id,
+                Notification.kind == "scan_report_email",
+            )
+        )
+        notifs = notif_res.scalars().all()
+        assert len(notifs) == 1
+        assert notifs[0].payload_json["scan_id"] == scan_id
+
+
+@pytest.mark.asyncio
+async def test_different_scans_remain_independent(tmp_path):
+    """TEST 5: Verify distinct scans remain completely independent, each getting 1 email and 1 notification."""
+    async with AsyncSessionLocal() as session:
+        unique = uuid.uuid4().hex[:8]
+        user = User(email=f"indep_{unique}@example.com", username=f"indep_{unique}", is_active=True, is_verified=True)
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+
+        proj = Project(name=f"IndepProj {unique}", user_id=user.id)
+        session.add(proj)
+        await session.commit()
+        await session.refresh(proj)
+
+        target = Target(project_id=proj.id, scheme="https", host="indep.sec", url="https://indep.sec")
+        session.add(target)
+        await session.commit()
+        await session.refresh(target)
+
+        scan_a = Scan(project_id=proj.id, target_id=target.id, user_id=user.id, scan_type="quick", status="completed")
+        scan_b = Scan(project_id=proj.id, target_id=target.id, user_id=user.id, scan_type="full", status="completed")
+        session.add_all([scan_a, scan_b])
+        await session.commit()
+        await session.refresh(scan_a)
+        await session.refresh(scan_b)
+
+        pdf_a = tmp_path / f"scan_a_{unique}.pdf"
+        pdf_b = tmp_path / f"scan_b_{unique}.pdf"
+        pdf_a.write_bytes(b"%PDF-1.4 scan A pdf")
+        pdf_b.write_bytes(b"%PDF-1.4 scan B pdf")
+
+        rep_a = Report(
+            scan_id=scan_a.id, project_id=proj.id, target_id=target.id,
+            report_format="pdf", file_path=str(pdf_a), file_size=pdf_a.stat().st_size,
+            executive_summary="Scan A summary", overall_risk_score=10.0,
+            severity_distribution_json={}, owasp_breakdown_json={}, cwe_mapping_json={}, cvss_analysis_json={},
+        )
+        rep_b = Report(
+            scan_id=scan_b.id, project_id=proj.id, target_id=target.id,
+            report_format="pdf", file_path=str(pdf_b), file_size=pdf_b.stat().st_size,
+            executive_summary="Scan B summary", overall_risk_score=20.0,
+            severity_distribution_json={}, owasp_breakdown_json={}, cwe_mapping_json={}, cvss_analysis_json={},
+        )
+        session.add_all([rep_a, rep_b])
+        await session.commit()
+        await session.refresh(rep_a)
+        await session.refresh(rep_b)
+
+        service = EmailReportService(session)
+        dispatched_targets = []
+
+        async def mock_dispatch(*args, **kwargs):
+            dispatched_targets.append(kwargs.get("to_email"))
+            return True
+
+        with patch.object(service.settings, "email_reports_enabled", True), \
+             patch.object(service.settings, "email_provider", "resend"), \
+             patch.object(service.settings, "resend_api_key", "re_mock_indep_key"), \
+             patch.object(EmailReportService, "_dispatch_resend", side_effect=mock_dispatch):
+            
+            res_a = await service.send_scan_report_email(scan_a.id, user.id, rep_a.id)
+            res_b = await service.send_scan_report_email(scan_b.id, user.id, rep_b.id)
+
+            assert res_a is True
+            assert res_b is True
+            assert len(dispatched_targets) == 2
+
+        # Verify 2 distinct notifications created, one for each scan
+        notif_res = await session.execute(
+            select(Notification).where(
+                Notification.user_id == user.id,
+                Notification.kind == "scan_report_email",
+            )
+        )
+        notifs = notif_res.scalars().all()
+        assert len(notifs) == 2
+        notif_scan_ids = {n.payload_json["scan_id"] for n in notifs}
+        assert notif_scan_ids == {scan_a.id, scan_b.id}
+

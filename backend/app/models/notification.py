@@ -20,3 +20,11 @@ class Notification(Base, UUIDMixin, TimestampMixin):
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user = relationship("User", back_populates="notifications")
+
+    @property
+    def meta(self) -> dict | None:
+        return self.payload_json
+
+    @meta.setter
+    def meta(self, value: dict | None) -> None:
+        self.payload_json = value
