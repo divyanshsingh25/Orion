@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.database.session import AsyncSessionLocal
 from app.models import Notification, Report, Scan, Target, User
+from app.services.email_transport import send_email_via_resend
 
 logger = logging.getLogger("orion.email_reports")
 
@@ -221,25 +222,36 @@ class EmailReportService:
             </div>
             """
 
-            # 6. SMTP Transport Dispatch
-            smtp_success = await self._dispatch_smtp(
-                to_email=user.email,
-                subject=subject,
-                text_body=text_body,
-                html_body=html_body,
-                pdf_bytes=pdf_bytes,
-                pdf_filename=pdf_filename,
-            )
+            # 6. Transport Dispatch (Resend HTTPS API or SMTP fallback)
+            provider = (self.settings.email_provider or "smtp").lower().strip()
+            if provider == "resend" or bool(self.settings.resend_api_key and str(self.settings.resend_api_key).strip()):
+                email_success = await self._dispatch_resend(
+                    to_email=user.email,
+                    subject=subject,
+                    text_body=text_body,
+                    html_body=html_body,
+                    pdf_bytes=pdf_bytes,
+                    pdf_filename=pdf_filename,
+                )
+            else:
+                email_success = await self._dispatch_smtp(
+                    to_email=user.email,
+                    subject=subject,
+                    text_body=text_body,
+                    html_body=html_body,
+                    pdf_bytes=pdf_bytes,
+                    pdf_filename=pdf_filename,
+                )
 
             # 7. Audit Notification Record
             try:
                 notif = Notification(
                     user_id=user.id,
-                    kind="scan_report_email" if smtp_success else "scan_report_email_failed",
-                    title="Report sent to your email" if smtp_success else "Report Email Delivery Failed",
+                    kind="scan_report_email" if email_success else "scan_report_email_failed",
+                    title="Report sent to your email" if email_success else "Report Email Delivery Failed",
                     message=(
                         f"Security report for {target_url} was successfully generated and sent to your email ({user.email})."
-                        if smtp_success
+                        if email_success
                         else f"Security report was generated for {target_url}, but emailing to {user.email} failed."
                     ),
                     payload_json={
@@ -247,7 +259,7 @@ class EmailReportService:
                         "target_url": target_url,
                         "report_id": report.id if report else None,
                         "has_pdf": pdf_bytes is not None,
-                        "delivered": smtp_success,
+                        "delivered": email_success,
                         "to_email": user.email,
                         "timestamp": datetime.now(UTC).isoformat(),
                     },
@@ -257,11 +269,31 @@ class EmailReportService:
             except Exception as notif_err:
                 logger.warning("Failed to persist email delivery notification: %s", notif_err)
 
-            return smtp_success
+            return email_success
 
         except Exception as exc:
             logger.error("Unexpected error in scan report email delivery for scan %s: %s", scan_id, exc)
             return False
+
+    async def _dispatch_resend(
+        self,
+        to_email: str,
+        subject: str,
+        text_body: str,
+        html_body: str | None = None,
+        pdf_bytes: bytes | None = None,
+        pdf_filename: str = "report.pdf",
+    ) -> bool:
+        """Sends scan report email with PDF attachment via Resend HTTPS API."""
+        return await send_email_via_resend(
+            settings=self.settings,
+            to_email=to_email,
+            subject=subject,
+            text_body=text_body,
+            html_body=html_body,
+            pdf_bytes=pdf_bytes,
+            pdf_filename=pdf_filename,
+        )
 
     async def _dispatch_smtp(
         self,
@@ -300,29 +332,52 @@ class EmailReportService:
 
             port = int(self.settings.smtp_port or 587)
             if port == 465:
+                stage = "tcp_connection_ssl"
                 with smtplib.SMTP_SSL(self.settings.smtp_host, port, timeout=20) as smtp:
                     if self.settings.smtp_username and self.settings.smtp_password:
+                        stage = "authentication"
                         smtp.login(self.settings.smtp_username, self.settings.smtp_password)
+                    stage = "message_sending"
                     smtp.send_message(message)
             else:
+                stage = "tcp_connection"
                 with smtplib.SMTP(self.settings.smtp_host, port, timeout=20) as smtp:
+                    stage = "starttls"
                     smtp.starttls()
+                    smtp.ehlo()
                     if self.settings.smtp_username and self.settings.smtp_password:
+                        stage = "authentication"
                         smtp.login(self.settings.smtp_username, self.settings.smtp_password)
+                    stage = "message_sending"
                     smtp.send_message(message)
+
+        stage = "initializing"
 
         try:
             await asyncio.to_thread(_send)
             logger.info("Scan report email successfully dispatched to %s", to_email)
             return True
         except Exception as exc:
-            # Explicitly sanitize error message to prevent accidental credential leakage
+            exc_type = type(exc).__name__
+            err_no = getattr(exc, "errno", None)
+            raw_msg = getattr(exc, "strerror", None) or str(exc)
+
+            # Sanitize to prevent exposing credentials, OTPs, or passwords
+            sanitized_msg = str(raw_msg)
+            for secret in (self.settings.smtp_password, self.settings.smtp_username):
+                if secret and secret in sanitized_msg:
+                    sanitized_msg = sanitized_msg.replace(secret, "[REDACTED]")
+
+            errno_str = f"errno={err_no}" if err_no is not None else "errno=None"
             logger.error(
-                "Failed to send scan report email to %s via SMTP (%s:%s): %s",
+                "Failed to send scan report email to %s via SMTP (%s:%s) [stage: %s]: %s (%s, message: %s)",
                 to_email,
                 self.settings.smtp_host,
                 self.settings.smtp_port,
-                type(exc).__name__,
+                stage,
+                exc_type,
+                errno_str,
+                sanitized_msg,
             )
             return False
 

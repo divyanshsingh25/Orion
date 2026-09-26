@@ -84,8 +84,8 @@ export function VerifyEmailPage() {
         return;
       }
       setStatusMessage(response.message || "Verification email sent. Check your inbox.");
-      if (response.dev_token) {
-        setToken(response.dev_token);
+      if ((import.meta as any).env?.DEV && response.dev_token) {
+        console.info("[ORION DEV ONLY] Resent Verification OTP:", response.dev_token);
       }
     } catch (err: any) {
       setStatusMessage(null);

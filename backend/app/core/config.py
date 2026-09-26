@@ -78,6 +78,18 @@ class Settings(BaseSettings):
         default=False,
         validation_alias=AliasChoices("EMAIL_REPORTS_ENABLED", "ORION_EMAIL_REPORTS_ENABLED"),
     )
+    email_provider: str = Field(
+        default="smtp",
+        validation_alias=AliasChoices("EMAIL_PROVIDER", "ORION_EMAIL_PROVIDER"),
+    )
+    resend_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("RESEND_API_KEY", "ORION_RESEND_API_KEY"),
+    )
+    email_from: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("EMAIL_FROM", "ORION_EMAIL_FROM"),
+    )
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_username: str | None = None
@@ -87,6 +99,38 @@ class Settings(BaseSettings):
         default="ORION Security",
         validation_alias=AliasChoices("SMTP_FROM_NAME", "ORION_SMTP_FROM_NAME"),
     )
+
+    environment: str = Field(
+        default="development",
+        validation_alias=AliasChoices(
+            "ENVIRONMENT",
+            "ENV",
+            "NODE_ENV",
+            "ORION_ENVIRONMENT",
+            "RAILWAY_ENVIRONMENT",
+            "RAILWAY_ENVIRONMENT_NAME",
+        ),
+    )
+
+    @property
+    def is_production(self) -> bool:
+        env = (self.environment or "development").lower().strip()
+        if env in ("production", "prod"):
+            return True
+        import os
+        if os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_PROJECT_ID"):
+            return True
+        frontend = (self.frontend_url or "").lower()
+        if "vercel.app" in frontend and "localhost" not in frontend:
+            return True
+        return False
+
+    @property
+    def is_email_configured(self) -> bool:
+        provider = (self.email_provider or "smtp").lower().strip()
+        if provider == "resend" or bool(self.resend_api_key and str(self.resend_api_key).strip()):
+            return bool(self.resend_api_key and str(self.resend_api_key).strip())
+        return bool(self.smtp_host and self.smtp_from_email)
 
     storage_dir: str = "storage"
     report_dir: str = "storage/reports"

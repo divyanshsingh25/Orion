@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.models import Notification, User
+from app.services.email_transport import send_email_via_resend
 
 logger = logging.getLogger("orion.notifications")
 
@@ -127,10 +128,20 @@ class NotificationService:
         logger.info("Password reset token generated for user %s (%s): %s", user.username, user.email, token)
         await self._maybe_send_email(user.email, subject, text_body)
 
-    async def _maybe_send_email(self, to_email: str, subject: str, body: str, html_body: str | None = None) -> None:
+    async def _maybe_send_email(self, to_email: str, subject: str, body: str, html_body: str | None = None) -> bool:
+        provider = (self.settings.email_provider or "smtp").lower().strip()
+        if provider == "resend" or bool(self.settings.resend_api_key and str(self.settings.resend_api_key).strip()):
+            return await send_email_via_resend(
+                settings=self.settings,
+                to_email=to_email,
+                subject=subject,
+                text_body=body,
+                html_body=html_body,
+            )
+
         if not self.settings.smtp_host or not self.settings.smtp_from_email:
             logger.info("SMTP not configured. Skipping external email dispatch.")
-            return
+            return False
 
         import asyncio
         import email.utils
@@ -139,7 +150,10 @@ class NotificationService:
         from_header = email.utils.formataddr((sender_name, self.settings.smtp_from_email))
         smtp_pwd = (self.settings.smtp_password or "").replace(" ", "") if self.settings.smtp_password else None
 
+        stage = "initializing"
+
         def _send():
+            nonlocal stage
             message = EmailMessage()
             message["Subject"] = subject
             message["From"] = from_header
@@ -150,25 +164,49 @@ class NotificationService:
 
             port = int(self.settings.smtp_port or 587)
             if port == 465:
+                stage = "tcp_connection_ssl"
                 with smtplib.SMTP_SSL(self.settings.smtp_host, port, timeout=15) as smtp:
                     if self.settings.smtp_username and smtp_pwd:
+                        stage = "authentication"
                         smtp.login(self.settings.smtp_username, smtp_pwd)
+                    stage = "message_sending"
                     smtp.send_message(message)
             else:
+                stage = "tcp_connection"
                 with smtplib.SMTP(self.settings.smtp_host, port, timeout=15) as smtp:
+                    stage = "starttls"
                     smtp.starttls()
+                    smtp.ehlo()
                     if self.settings.smtp_username and smtp_pwd:
+                        stage = "authentication"
                         smtp.login(self.settings.smtp_username, smtp_pwd)
+                    stage = "message_sending"
                     smtp.send_message(message)
 
         try:
             await asyncio.to_thread(_send)
             logger.info("Email successfully dispatched to %s", to_email)
+            return True
         except Exception as exc:
+            exc_type = type(exc).__name__
+            err_no = getattr(exc, "errno", None)
+            raw_msg = getattr(exc, "strerror", None) or str(exc)
+
+            # Sanitize to prevent exposing credentials, OTPs, or passwords
+            sanitized_msg = str(raw_msg)
+            for secret in (smtp_pwd, self.settings.smtp_password, self.settings.smtp_username):
+                if secret and secret in sanitized_msg:
+                    sanitized_msg = sanitized_msg.replace(secret, "[REDACTED]")
+
+            errno_str = f"errno={err_no}" if err_no is not None else "errno=None"
             logger.error(
-                "Failed to send email to %s via SMTP (%s:%s): %s",
+                "Failed to send email to %s via SMTP (%s:%s) [stage: %s]: %s (%s, message: %s)",
                 to_email,
                 self.settings.smtp_host,
                 self.settings.smtp_port,
-                type(exc).__name__,
+                stage,
+                exc_type,
+                errno_str,
+                sanitized_msg,
             )
+            return False

@@ -75,7 +75,7 @@ class AuthService:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email or username already exists")
 
         resp = {"user": self._to_user_read(user), "message": "Account created. A 6-digit verification OTP has been sent to your email."}
-        if not self.settings.smtp_host or not self.settings.smtp_from_email:
+        if not self.settings.is_production and not self.settings.is_email_configured:
             resp["dev_token"] = verification_token
         return resp
 
@@ -190,7 +190,7 @@ class AuthService:
         await self.db.commit()
 
         resp = {"message": "Verification OTP sent successfully."}
-        if not self.settings.smtp_host or not self.settings.smtp_from_email:
+        if not self.settings.is_production and not self.settings.is_email_configured:
             resp["dev_token"] = verification_token
             resp["message"] = "Verification OTP generated! Enter code below to activate."
         return resp

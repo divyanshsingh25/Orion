@@ -84,12 +84,11 @@ export function LoginPage() {
         }
 
         const regRes = await register(cleanEmail, password, cleanUsername, cleanFullName, cleanOrganization);
-        const queryParams = new URLSearchParams({ email: cleanEmail });
-        if (regRes?.dev_token) {
-          queryParams.set("token", regRes.dev_token);
+        if ((import.meta as any).env?.DEV && regRes?.dev_token) {
+          console.info("[ORION DEV ONLY] Verification OTP:", regRes.dev_token);
         }
-        // Navigate directly to verify-email without issuing session
-        navigate(`/verify-email?${queryParams.toString()}`);
+        // Always navigate with only the email parameter so the user must enter the OTP received in their email
+        navigate(`/verify-email?email=${encodeURIComponent(cleanEmail)}`);
       } else {
         const cleanIdentifier = identifier.trim();
         if (!cleanIdentifier) {
