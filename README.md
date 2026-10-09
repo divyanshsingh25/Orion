@@ -23,6 +23,7 @@ An AI-powered web application security assessment platform for automated vulnera
 </p>
 
 <p align="center">
+  <a href="FINAL_PROJECT_REPORT.md"><b>📑 Master Technical Project Report</b></a> •
   <a href="#-authorized-security-testing-only">Security Policy</a> •
   <a href="#-visual-showcase">Screenshots</a> •
   <a href="#-key-capabilities">Features</a> •
@@ -32,6 +33,13 @@ An AI-powered web application security assessment platform for automated vulnera
 </p>
 
 </div>
+
+---
+
+> [!TIP]
+> ### 📑 Comprehensive Academic & Technical Project Report Available
+> For the complete final technical report, system architecture diagrams, 66+ security checks inventory, database ER schemas, API specifications, and comparative benchmarks, see:
+> 👉 **[FINAL_PROJECT_REPORT.md](FINAL_PROJECT_REPORT.md)** (Master Technical Project Report)
 
 ---
 
@@ -261,6 +269,7 @@ flowchart TD
 
 ```
 Orion/
+├── FINAL_PROJECT_REPORT.md  # Master Technical Project Report & Comprehensive Documentation
 ├── docs/
 │   └── images/              # Dedicated directory for README screenshots & banners
 ├── backend/
